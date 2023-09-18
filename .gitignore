@@ -1,0 +1,13 @@
+/func/obj/
+
+/gettrace/gettrace.cache
+/gettrace/gettrace.hw
+/gettrace/gettrace.sim
+
+/module_verify/cache_verify/run_vivado/project/
+/module_verify/tlb_verify/run_vivado/project/
+
+/soc_verify/soc_axi/run_vivado/project/
+/soc_verify/soc_bram/run_vivado/project/
+/soc_verify/soc_dram/run_vivado/project/
+/soc_verify/soc_hs_bram/run_vivado/project/
