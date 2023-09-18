@@ -3,6 +3,7 @@
 /gettrace/gettrace.cache
 /gettrace/gettrace.hw
 /gettrace/gettrace.sim
+/gettrace/gettrace.ip_user_files
 
 /module_verify/cache_verify/run_vivado/project/
 /module_verify/tlb_verify/run_vivado/project/
