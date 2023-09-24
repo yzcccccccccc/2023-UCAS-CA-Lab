@@ -29,6 +29,8 @@ module EX(
     // data ram interface (Read)
     output  wire         data_sram_en,
     output  wire [31:0]  data_sram_addr,
+    output  wire [31:0]  data_sram_wdata,
+    output  wire [3:0]   data_sram_we, 
 
     // EXreg bus
     output  wire         EXreg_valid,
@@ -55,8 +57,10 @@ module EX(
     );
 
 // Access MEM
-    assign data_sram_en     = mem_en;
+    assign data_sram_en     = mem_en & valid;
     assign data_sram_addr   = alu_result;
+    assign data_sram_wdata  = rkd_value;
+    assign data_sram_we     = mem_we & {4{valid}};
 
 // EXreg
     assign EXreg_valid      = valid;
