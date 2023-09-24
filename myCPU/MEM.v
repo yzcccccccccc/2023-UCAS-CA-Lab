@@ -10,10 +10,7 @@ module MEM(
     input   wire        valid,
 
     // data mem interface
-    input   wire [31:0] data_sram_rdata,
-    output  wire [31:0] data_sram_addr,
-    output  wire [31:0] data_sram_wdata,
-    output  wire [3:0]  data_sram_we,  
+    input   wire [31:0] data_sram_rdata, 
 
     // control signals
     input   wire        EX_ready_go,
@@ -28,18 +25,19 @@ module MEM(
     input   wire [31:0] pc,
 
     // MEMReg bus
-    output  wire                MEMreg_valid,
-    output  wire [`MEM2WB_LEN]  MEMreg_2WB
+    output  wire                        MEMreg_valid,
+    output  wire [`MEM2WB_LEN - 1:0]    MEMreg_2WB
     
 );
     // Define Signals
         wire [31:0]     data;
 
     // MEM
-        assign data_sram_addr       = alu_result;
-        assign data_sram_we         = mem_we;
-        assign data_sram_wdata      = rkd_value;
         assign data                 = data_sram_rdata;
+
+    // control signals
+        assign MEM_allow_in         = 1;
+        assign MEM_ready_go         = 1;
 
     // MEMreg
         assign MEMreg_valid         = valid;

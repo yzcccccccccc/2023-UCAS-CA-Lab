@@ -12,3 +12,13 @@
 /soc_verify/soc_bram/run_vivado/project/
 /soc_verify/soc_dram/run_vivado/project/
 /soc_verify/soc_hs_bram/run_vivado/project/
+
+/soc_verify/soc_axi/rtl/xilinx_ip/
+/soc_verify/soc_bram/rtl/xilinx_ip/
+/soc_verify/soc_dram/rtl/xilinx_ip/
+/soc_verify/soc_hs_bram/rtl/xilinx_ip/
+
+!/soc_verify/soc_axi/rtl/xilinx_ip/**/*.xci
+!/soc_verify/soc_bram/rtl/xilinx_ip/**/*.xci
+!/soc_verify/soc_dram/rtl/xilinx_ip/**/*.xci
+~/soc_verify/soc_hs_bram/rtl/xilinx_ip/**/*.xci

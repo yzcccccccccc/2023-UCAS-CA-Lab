@@ -91,7 +91,7 @@ module mycpu_top(
         .wdata(rf_wdata)
     );
 
-// pipeline
+// pipeline states
     // IF
         IF  u_IF(
             .clk(clk),
@@ -127,18 +127,25 @@ module mycpu_top(
             .IDreg_valid(toIDreg_valid_bus),
             .IDreg_2EX(ID2EX_bus),
             .IDreg_2MEM(ID2MEM_bus),
-            .IDreg_2WB(ID2WB_bus)
+            .IDreg_2WB(ID2WB_bus),
+            .BR_BUS(BR_BUS)
         );
 
     // EX
-        wire    EX_alu_op, EX_alu_src1, EX_alu_src2;
+        wire    [11:0]      EX_alu_op;
+        wire    [31:0]      EX_alu_src1, EX_alu_src2;
         assign {EX_alu_op, EX_alu_src1, EX_alu_src2}            = IDreg_2EX;
 
-        wire    EX_mem_en, EX_rkd_value, EX_mem_we;
+        wire                EX_mem_en;
+        wire    [31:0]      EX_rkd_value;
+        wire                EX_mem_we;
         assign {EX_rkd_value, EX_mem_en, EX_mem_we}             = IDreg_2MEM;
 
-        wire    EX_rf_we, EX_res_from_mem, EX_rf_waddr, EX_pc;
+        wire                EX_rf_we, EX_res_from_mem;
+        wire    [4:0]       EX_rf_waddr;
+        wire    [31:0]      EX_pc;
         assign {EX_rf_we, EX_res_from_mem, EX_rf_waddr, EX_pc}  = IDreg_2WB;
+
         EX  u_EX(
             .clk(clk),
             .reset(reset),
@@ -158,7 +165,9 @@ module mycpu_top(
             .EX_allow_in(EX_allow_in),
             .EX_ready_go(EX_ready_go),
             .data_sram_en(data_sram_en),
-            .data_sram_addr(data_sram_addr),。
+            .data_sram_addr(data_sram_addr),
+            .data_sram_wdata(data_sram_wdata),
+            .data_sram_we(data_sram_we),
             .EXreg_valid(toEXreg_valid_bus),
             .EXreg_2MEM(EX2MEM_bus),
             .EXreg_2WB(EX2WB_bus)
@@ -168,12 +177,12 @@ module mycpu_top(
         wire    [31:0]      MEM_alu_result;
         wire    [31:0]      MEM_rkd_value;
         wire    [3:0]       MEM_mem_we;
-        assign  {MEM_alu_result, MEM_rkd_value, MEM_mem_we}         = IDreg_2MEM;
+        assign  {MEM_alu_result, MEM_rkd_value, MEM_mem_we}         = EXreg_2MEM;
 
         wire                MEM_rf_we, MEM_res_from_mem;
         wire    [4:0]       MEM_rf_waddr;
         wire    [31:0]      MEM_pc;
-        assign  {MEM_rf_we, MEM_res_from_mem, MEM_rf_waddr, MEM_pc} = IDreg_2WB; 
+        assign  {MEM_rf_we, MEM_res_from_mem, MEM_rf_waddr, MEM_pc} = EXreg_2WB; 
 
         MEM u_MEM(
             .clk(clk),
@@ -183,9 +192,6 @@ module mycpu_top(
             .rkd_value(MEM_rkd_value),
             .mem_we(MEM_mem_we),
             .data_sram_rdata(data_sram_rdata),
-            .data_sram_addr(data_sram_addr),
-            .data_sram_wdata(data_sram_wdata),
-            .data_sram_we(data_sram_we),
             .EX_ready_go(EX_ready_go),
             .WB_allow_in(WB_allow_in),
             .MEM_allow_in(MEM_allow_in),

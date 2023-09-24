@@ -16,9 +16,9 @@ module IF(
     input  wire         ID_allow_in,
 
     // IFreg bus
-    output wire         IFReg_valid,
+    output wire         IFreg_valid,
     output wire [31:0]  IFreg_pc,
-    output wire [31:0]  IFreg_inst
+    output wire [31:0]  IFreg_inst,
 
     // BR_BUS (={br_target, br_taken})
     input  wire [`BR_BUS_LEN - 1:0] BR_BUS
@@ -44,9 +44,9 @@ module IF(
     end
 
     // Pre IF
-    assign pc_sec                   = pc + 32'h4;
-    assign {br_taken, br_target}    = BR_BUS;
-    assign pc_next                  = pc_sec;       // to be fixed in exp8
+    assign pc_seq                   = pc + 32'h4;
+    assign {br_target, br_taken}    = BR_BUS;
+    assign pc_next                  = br_taken ? br_target : pc_seq;
 
     // IF
     assign inst_sram_we     = 4'b0;
@@ -64,7 +64,7 @@ module IF(
     end
 
     // to IF_reg
-    assign IFReg_valid      = IF_valid;
+    assign IFreg_valid      = IF_valid & ~br_taken;
     assign IFreg_inst       = inst;
     assign IFreg_pc         = pc;
 

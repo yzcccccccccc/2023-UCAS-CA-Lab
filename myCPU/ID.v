@@ -25,7 +25,7 @@ module ID(
     output  wire                        IDreg_valid,
     output  wire [`ID2EX_LEN - 1:0]     IDreg_2EX,
     output  wire [`ID2MEM_LEN - 1:0]    IDreg_2MEM,
-    output  wire [`ID2WB - 1:0]         IDreg_2WB,
+    output  wire [`ID2WB_LEN - 1:0]     IDreg_2WB,
     
     // BR bus
     output  wire [`BR_BUS_LEN - 1:0] BR_BUS
@@ -194,7 +194,7 @@ module ID(
     assign dst_is_r1     = inst_bl;
     assign gr_we         = ~inst_st_w & ~inst_beq & ~inst_bne & ~inst_b;
     assign mem_we        = inst_st_w;           // to be fixed in exp10 (or so)
-    assign mem_en        = res_from_mem | res_from_mem;
+    assign mem_en        = res_from_mem | inst_st_w;
 
     assign dest          = dst_is_r1 ? 5'd1 : rd;
 

@@ -3,7 +3,7 @@
 `define IF2ID_pc        32
 `define IF2ID_inst      32
 
-`define ID2EX_LEN       66
+`define ID2EX_LEN       76
 `define ID2MEM_LEN      34
 `define ID2WB_LEN       39 
 

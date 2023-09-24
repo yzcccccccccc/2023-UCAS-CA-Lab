@@ -32,8 +32,8 @@ module WB(
 );
     // Reg File
         assign waddr        = rf_waddr;
-        assign wdata        = res_from_mem ? : data : alu_result;
-        assign we           = rf_we;
+        assign wdata        = res_from_mem ? data : alu_result;
+        assign we           = rf_we & valid;
 
     // debug
         assign debug_wb_pc          = pc;
