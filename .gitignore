@@ -22,3 +22,5 @@
 !/soc_verify/soc_bram/rtl/xilinx_ip/**/*.xci
 !/soc_verify/soc_dram/rtl/xilinx_ip/**/*.xci
 ~/soc_verify/soc_hs_bram/rtl/xilinx_ip/**/*.xci
+
+*.patch
