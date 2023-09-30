@@ -3,22 +3,9 @@ module EX(
     input   wire        clk,
     input   wire        reset,
 
-    // alu_op & alu_src & valid
-    input   wire [11:0] alu_op,
-    input   wire [31:0] alu_src1,
-    input   wire [31:0] alu_src2,
-    input   wire        valid,
-
-    // MEM
-    input   wire        mem_en,
-    input   wire [31:0] rkd_value,
-    input   wire [3:0]  mem_we,
-
-    // to WB
-    input   wire        rf_we,
-    input   wire        res_from_mem,
-    input   wire [4:0]  rf_waddr,
-    input   wire [31:0] pc,
+    // valid & IDreg_bus
+    input   wire                        valid,
+    input   wire [`IDReg_BUS_LEN - 1:0] IDreg_bus,
 
     // control signals
     input   wire        ID_ready_go,
@@ -33,9 +20,8 @@ module EX(
     output  wire [3:0]   data_sram_we, 
 
     // EXreg bus
-    output  wire         EXreg_valid,
-    output  wire [`EX2MEM_LEN - 1:0]    EXreg_2MEM,
-    output  wire [`EX2WB_LEN - 1:0]     EXreg_2WB
+    output  wire                        EXreg_valid,
+    output  wire [`EXReg_BUS_LEN - 1:0] EXreg_bus
 
 );
 
@@ -44,6 +30,29 @@ module EX(
         In EX state, we need to request data_ram for the data to be used
     in MEM state.
 *************************************************************************************/
+
+// IDreg_bus Decode
+    wire    [`ID2EX_LEN - 1:0]  ID2EX_bus;
+    wire    [`ID2MEM_LEN - 1:0] ID2MEM_bus;
+    wire    [`ID2WB_LEN - 1:0]  ID2WB_bus;
+
+    assign  {ID2EX_bus, ID2MEM_bus, ID2WB_bus} = IDreg_bus;
+
+    wire    [11:0]  alu_op;
+    wire    [31:0]  alu_src1, alu_src2;
+
+    wire            mem_en;
+    wire    [31:0]  rkd_value;
+    wire    [3:0]   mem_we;
+
+    wire            rf_we;
+    wire            res_from_mem;
+    wire    [4:0]   rf_waddr;
+    wire    [31:0]  pc;
+
+    assign  {alu_op, alu_src1, alu_src2}        = ID2EX_bus;
+    assign  {rkd_value, mem_en, mem_we}         = ID2MEM_bus;
+    assign  {rf_we, res_from_mem, rf_waddr, pc} = ID2WB_bus;
 
 // Define Signals
     wire [31:0]         alu_result;
@@ -62,10 +71,13 @@ module EX(
     assign data_sram_wdata  = rkd_value;
     assign data_sram_we     = mem_we & {4{valid}};
 
-// EXreg
+// EXreg_bus
+    wire    [`EX2MEM_LEN - 1:0] EXreg_2MEM;
+    wire    [`EX2WB_LEN - 1:0]  EXreg_2WB;
     assign EXreg_valid      = valid;
     assign EXreg_2MEM       = {alu_result, rkd_value, mem_we};
     assign EXreg_2WB        = {rf_we, res_from_mem, rf_waddr, pc};
+    assign EXreg_bus        = {EXreg_2MEM, EXreg_2WB};
 
 // control signals
     assign EX_ready_go      = 1;

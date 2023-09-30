@@ -4,10 +4,9 @@ module ID(
     input   wire        clk,
     input   wire        reset,
 
-    // inst & valid & pc
-    input   wire [31:0] inst,
-    input   wire [31:0] pc,
-    input   wire        valid,
+    // valid & IFreg_bus
+    input   wire                        valid,
+    input   wire [`IFReg_BUS_LEN - 1:0] IFreg_bus,
 
     // control sigals
     input   wire        IF_ready_go,
@@ -21,15 +20,17 @@ module ID(
     input   wire [31:0] rf_rdata1,
     input   wire [31:0] rf_rdata2,
 
-    // IDreg 
+    // IDreg bus
     output  wire                        IDreg_valid,
-    output  wire [`ID2EX_LEN - 1:0]     IDreg_2EX,
-    output  wire [`ID2MEM_LEN - 1:0]    IDreg_2MEM,
-    output  wire [`ID2WB_LEN - 1:0]     IDreg_2WB,
+    output  wire [`IDReg_BUS_LEN - 1:0] IDreg_bus,
     
     // BR bus
     output  wire [`BR_BUS_LEN - 1:0] BR_BUS
 );
+
+// IFreg_bus Decode
+    wire    [31:0]  inst, pc;
+    assign  {inst, pc}  = IFreg_bus;
 
 // Define Signals
     wire        br_taken;
@@ -43,7 +44,7 @@ module ID(
     wire        res_from_mem;
     wire        dst_is_r1;
     wire        gr_we;
-    wire        mem_we;
+    wire [3: 0] mem_we;
     wire        mem_en;
     wire        src_reg_is_rd;
     wire [4: 0] dest;
@@ -193,7 +194,7 @@ module ID(
     assign res_from_mem  = inst_ld_w;
     assign dst_is_r1     = inst_bl;
     assign gr_we         = ~inst_st_w & ~inst_beq & ~inst_bne & ~inst_b;
-    assign mem_we        = inst_st_w;           // to be fixed in exp10 (or so)
+    assign mem_we        = {4{inst_st_w}};           // to be fixed in exp10 (or so)
     assign mem_en        = res_from_mem | inst_st_w;
 
     assign dest          = dst_is_r1 ? 5'd1 : rd;
@@ -221,11 +222,17 @@ module ID(
     assign rf_we    = gr_we && valid;
     assign rf_waddr = dest;
 
-// IDreg
+// IDreg_bus
+    wire    [`ID2EX_LEN - 1:0]  IDreg_2EX;
+    wire    [`ID2MEM_LEN - 1:0] IDreg_2MEM;
+    wire    [`ID2WB_LEN - 1:0]  IDreg_2WB;
+
     assign IDreg_valid      = valid;
     assign IDreg_2EX        = {alu_op, alu_src1, alu_src2};
     assign IDreg_2MEM       = {rkd_value, mem_en, mem_we};
     assign IDreg_2WB        = {rf_we, res_from_mem, rf_waddr, pc};
+
+    assign IDreg_bus        = {IDreg_2EX, IDreg_2MEM, IDreg_2WB};
 
 // control signals
     assign ID_ready_go      = 1;

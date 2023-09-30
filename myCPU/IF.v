@@ -16,9 +16,8 @@ module IF(
     input  wire         ID_allow_in,
 
     // IFreg bus
-    output wire         IFreg_valid,
-    output wire [31:0]  IFreg_pc,
-    output wire [31:0]  IFreg_inst,
+    output wire                         IFreg_valid,
+    output wire [`IFReg_BUS_LEN - 1:0]  IFreg_bus,
 
     // BR_BUS (={br_target, br_taken})
     input  wire [`BR_BUS_LEN - 1:0] BR_BUS
@@ -63,10 +62,9 @@ module IF(
             IF_valid <= 1;
     end
 
-    // to IF_reg
+    // to IFreg_bus
     assign IFreg_valid      = IF_valid & ~br_taken;
-    assign IFreg_inst       = inst;
-    assign IFreg_pc         = pc;
+    assign IFreg_bus        = {inst, pc};
 
     // control signals
     assign IF_ready_go      = 1'b1;
