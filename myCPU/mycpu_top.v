@@ -46,6 +46,10 @@ module mycpu_top(
         wire                                toMEMreg_valid_bus;
         wire    [`MEMReg_BUS_LEN - 1:0]     MEMreg_bus;
 
+        wire    [`EX_BYPASS_LEN - 1:0]      EX_bypass_bus;
+        wire    [`MEM_BYPASS_LEN - 1:0]     MEM_bypass_bus;
+        wire    [`WB_BYPASS_LEN - 1:0]      WB_bypass_bus;
+
     // control signals
         wire    IF_ready_go, ID_allow_in, ID_ready_go,
                 EX_ready_go, EX_allow_in, MEM_allow_in,
@@ -84,20 +88,20 @@ module mycpu_top(
     );
 
 // Data Harzard Detect
-    wire    [4:0]   EX_rf_waddr, MEM_rf_waddr;
-    wire            EX_rf_we, MEM_rf_we;
-    wire            data_harzard_occur;
+    wire    [31:0]  addr1_forward, addr2_forward;
+    wire            pause, addr1_occur, addr2_occur;
 
     data_harzard_detector u_dhd(
         .rf_raddr1(rf_raddr1),
         .rf_raddr2(rf_raddr2),
-        .EX_rf_waddr(EX_rf_waddr),
-        .EX_rf_we(EX_rf_we),
-        .MEM_rf_waddr(MEM_rf_waddr),
-        .MEM_rf_we(MEM_rf_we),
-        .WB_rf_waddr(rf_waddr),
-        .WB_rf_we(rf_we),
-        .occur(data_harzard_occur)
+        .EX_bypass_bus(EX_bypass_bus),
+        .MEM_bypass_bus(MEM_bypass_bus),
+        .WB_bypass_bus(WB_bypass_bus),
+        .pause(pause),
+        .addr1_forward(addr1_forward),
+        .addr1_occur(addr1_occur),
+        .addr2_forward(addr2_forward),
+        .addr2_occur(addr2_occur)
     );  
 
 // Pipeline states
@@ -133,7 +137,11 @@ module mycpu_top(
             .rf_rdata2(rf_rdata2),
             .IDreg_valid(toIDreg_valid_bus),
             .IDreg_bus(IDreg_bus),
-            .data_harzard_occur(data_harzard_occur),
+            .pause(pause),
+            .addr1_forward(addr1_forward),
+            .addr1_occur(addr1_occur),
+            .addr2_forward(addr2_forward),
+            .addr2_occur(addr2_occur),
             .BR_BUS(BR_BUS)
         );
 
@@ -151,8 +159,7 @@ module mycpu_top(
             .data_sram_addr(data_sram_addr),
             .data_sram_wdata(data_sram_wdata),
             .data_sram_we(data_sram_we),
-            .EX_rf_waddr(EX_rf_waddr),
-            .EX_rf_we(EX_rf_we),
+            .EX_bypass_bus(EX_bypass_bus),
             .EXreg_valid(toEXreg_valid_bus),
             .EXreg_bus(EXreg_bus)
         );
@@ -168,8 +175,7 @@ module mycpu_top(
             .WB_allow_in(WB_allow_in),
             .MEM_allow_in(MEM_allow_in),
             .MEM_ready_go(MEM_ready_go),
-            .MEM_rf_waddr(MEM_rf_waddr),
-            .MEM_rf_we(MEM_rf_we),
+            .MEM_bypass_bus(MEM_bypass_bus),
             .MEMreg_valid(toMEMreg_valid_bus),
             .MEMreg_bus(MEMreg_bus)
         ); 
@@ -183,6 +189,7 @@ module mycpu_top(
             .rf_wdata(rf_wdata),
             .rf_waddr(rf_waddr),
             .rf_we(rf_we),
+            .WB_bypass_bus(WB_bypass_bus),
             .debug_wb_pc(debug_wb_pc),
             .debug_wb_rf_we(debug_wb_rf_we),
             .debug_wb_rf_wnum(debug_wb_rf_wnum),

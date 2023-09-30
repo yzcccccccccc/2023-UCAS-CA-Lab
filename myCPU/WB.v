@@ -13,6 +13,9 @@ module WB(
     output  wire [31:0] rf_wdata,
     output  wire        rf_we,
 
+    // data harzard bypass
+    output  wire [`WB_BYPASS_LEN - 1:0] WB_bypass_bus,
+
     // debug
     output  wire [31:0] debug_wb_pc,
     output  wire [3:0]  debug_wb_rf_we,
@@ -39,8 +42,11 @@ module WB(
         assign debug_wb_pc          = pc;
         assign debug_wb_rf_wdata    = rf_wdata;
         assign debug_wb_rf_wnum     = rf_waddr;
-        assign debug_wb_rf_we       = {4{rf_we & valid}};
+        assign debug_wb_rf_we       = {4{rf_we}};
     
+    // data harzard bypass
+        assign WB_bypass_bus    = {rf_waddr, rf_we, rf_wdata};
+
     // control signals
         assign WB_ready_go          = 1;
         assign WB_allow_in          = 1;

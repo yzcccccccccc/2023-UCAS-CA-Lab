@@ -21,7 +21,11 @@ module ID(
     input   wire [31:0] rf_rdata2,
 
     // Data Harzard
-    input   wire        data_harzard_occur,
+    input   wire        pause,
+    input   wire        addr1_occur,
+    input   wire        addr2_occur,
+    input   wire [31:0] addr1_forward,
+    input   wire [31:0] addr2_forward,
 
     // IDreg bus
     output  wire                        IDreg_valid,
@@ -207,8 +211,8 @@ module ID(
     assign rf_raddr1 = rj;
     assign rf_raddr2 = src_reg_is_rd ? rd :rk;
 
-    assign rj_value  = rf_rdata1;
-    assign rkd_value = rf_rdata2;
+    assign rj_value  = addr1_occur? addr1_forward : rf_rdata1;
+    assign rkd_value = addr2_occur? addr2_forward : rf_rdata2;
 
     assign rj_eq_rd = (rj_value == rkd_value);
     assign br_taken = (   inst_beq  &&  rj_eq_rd
@@ -240,7 +244,7 @@ module ID(
     assign IDreg_bus        = {IDreg_2EX, IDreg_2MEM, IDreg_2WB};
 
 // control signals
-    assign ID_ready_go      = ~data_harzard_occur;
+    assign ID_ready_go      = ~pause;
     assign ID_allow_in      = EX_allow_in & ID_ready_go;
 
 // BR_BUS

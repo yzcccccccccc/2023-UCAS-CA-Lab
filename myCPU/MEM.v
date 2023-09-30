@@ -16,9 +16,8 @@ module MEM(
     output  wire        MEM_allow_in,
     output  wire        MEM_ready_go,
 
-    // data harzard detect signals
-    output  wire [4:0]  MEM_rf_waddr,
-    output  wire        MEM_rf_we,
+    // data harzard bypass
+    output  wire [`MEM_BYPASS_LEN - 1:0]    MEM_bypass_bus,
 
     // MEMReg bus
     output  wire                            MEMreg_valid,
@@ -49,9 +48,8 @@ module MEM(
         assign MEM_allow_in         = WB_allow_in & MEM_ready_go;
         assign MEM_ready_go         = 1;
 
-    // data harzard detect
-        assign MEM_rf_waddr         = rf_waddr;
-        assign MEM_rf_we            = rf_we & valid;
+    // data harzard bypass
+        assign MEM_bypass_bus   = {rf_waddr, rf_we & valid, res_from_mem, alu_result, data}; 
 
     // MEMreg_bus
         assign MEMreg_valid         = valid;
