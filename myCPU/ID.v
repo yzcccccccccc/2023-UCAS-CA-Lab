@@ -20,6 +20,9 @@ module ID(
     input   wire [31:0] rf_rdata1,
     input   wire [31:0] rf_rdata2,
 
+    // Data Harzard
+    input   wire        data_harzard_occur,
+
     // IDreg bus
     output  wire                        IDreg_valid,
     output  wire [`IDReg_BUS_LEN - 1:0] IDreg_bus,
@@ -53,6 +56,8 @@ module ID(
     wire [31:0] imm;
     wire [31:0] br_offs;
     wire [31:0] jirl_offs;
+
+    wire        rj_eq_rd;
 
     wire        rf_we;
     wire [4:0]  rf_waddr;
@@ -235,8 +240,8 @@ module ID(
     assign IDreg_bus        = {IDreg_2EX, IDreg_2MEM, IDreg_2WB};
 
 // control signals
-    assign ID_ready_go      = 1;
-    assign ID_allow_in      = 1;
+    assign ID_ready_go      = ~data_harzard_occur;
+    assign ID_allow_in      = EX_allow_in & ID_ready_go;
 
 // BR_BUS
     assign BR_BUS       = {br_target, br_taken};

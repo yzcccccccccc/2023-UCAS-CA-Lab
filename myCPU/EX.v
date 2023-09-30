@@ -19,6 +19,10 @@ module EX(
     output  wire [31:0]  data_sram_wdata,
     output  wire [3:0]   data_sram_we, 
 
+    // data harzard detect signals
+    output  wire [4:0]  EX_rf_waddr,
+    output  wire        EX_rf_we,
+
     // EXreg bus
     output  wire                        EXreg_valid,
     output  wire [`EXReg_BUS_LEN - 1:0] EXreg_bus
@@ -79,8 +83,12 @@ module EX(
     assign EXreg_2WB        = {rf_we, res_from_mem, rf_waddr, pc};
     assign EXreg_bus        = {EXreg_2MEM, EXreg_2WB};
 
+// Data Harzard Detect
+    assign  EX_rf_waddr = rf_waddr;
+    assign  EX_rf_we    = rf_we & valid;
+
 // control signals
     assign EX_ready_go      = 1;
-    assign EX_allow_in      = 1;
+    assign EX_allow_in      = MEM_allow_in & EX_ready_go;
 
 endmodule

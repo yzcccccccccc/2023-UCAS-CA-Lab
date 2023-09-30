@@ -16,6 +16,10 @@ module MEM(
     output  wire        MEM_allow_in,
     output  wire        MEM_ready_go,
 
+    // data harzard detect signals
+    output  wire [4:0]  MEM_rf_waddr,
+    output  wire        MEM_rf_we,
+
     // MEMReg bus
     output  wire                            MEMreg_valid,
     output  wire [`MEMReg_BUS_LEN - 1:0]    MEMreg_bus
@@ -42,8 +46,12 @@ module MEM(
         assign data                 = data_sram_rdata;
 
     // control signals
-        assign MEM_allow_in         = 1;
+        assign MEM_allow_in         = WB_allow_in & MEM_ready_go;
         assign MEM_ready_go         = 1;
+
+    // data harzard detect
+        assign MEM_rf_waddr         = rf_waddr;
+        assign MEM_rf_we            = rf_we & valid;
 
     // MEMreg_bus
         assign MEMreg_valid         = valid;
