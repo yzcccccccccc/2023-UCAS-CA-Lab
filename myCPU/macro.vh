@@ -4,10 +4,11 @@
 `define IF2ID_inst      32
 `define IFReg_BUS_LEN   64
 
-`define ID2EX_LEN       76
+`define ID2EX_LEN       78
+/* ID2EX = {alu_op, alu_src1, alu_src2, mul, div} */
 `define ID2MEM_LEN      37
 `define ID2WB_LEN       39 
-`define IDReg_BUS_LEN   152
+`define IDReg_BUS_LEN   154
 
 `define EX2MEM_LEN      68
 `define EX2WB_LEN       39

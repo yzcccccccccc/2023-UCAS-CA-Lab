@@ -104,7 +104,29 @@ module ID(
     wire        inst_bne;
     wire        inst_lu12i_w;
 
+    // User Operate Inst (exp10)
+    wire        inst_slti;
+    wire        inst_sltui;
+    wire        inst_andi;
+    wire        inst_ori;
+    wire        inst_xori;
+    wire        inst_sll_w;
+    wire        inst_srl_w;
+    wire        inst_sra_w;
+    wire        inst_pcaddu12i;
+
+    // User Mul/Div Inst (exp10)
+    wire        inst_mul_w;
+    wire        inst_mulh_w;
+    wire        inst_mulh_wu;
+    wire        inst_div_w;
+    wire        inst_mod_w;
+    wire        inst_div_wu;
+    wire        inst_mod_wu;
+    wire        mul, div;
+
     wire        need_ui5;
+    wire        need_ui12;
     wire        need_si12;
     wire        need_si16;
     wire        need_si20;
@@ -155,31 +177,58 @@ module ID(
     assign inst_bne    = op_31_26_d[6'h17];
     assign inst_lu12i_w= op_31_26_d[6'h05] & ~inst[25];
 
+    // User Operate Inst (exp10)
+    assign inst_slti        = op_31_26_d[6'h00] & op_25_22_d[4'h8];
+    assign inst_sltui       = op_31_26_d[6'h00] & op_25_22_d[4'h9];
+    assign inst_andi        = op_31_26_d[6'h00] & op_25_22_d[4'hd];
+    assign inst_ori         = op_31_26_d[6'h00] & op_25_22_d[4'he];
+    assign inst_xori        = op_31_26_d[6'h00] & op_25_22_d[4'hf];
+    assign inst_sll_w       = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h1] & op_19_15_d[5'h0e];
+    assign inst_srl_w       = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h1] & op_19_15_d[5'h0f];
+    assign inst_sra_w       = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h1] & op_19_15_d[5'h10];
+    assign inst_pcaddu12i   = op_31_26_d[6'h07] & ~inst[25];
+
+    // User Mul/Div Inst (exp10)
+    assign inst_mul_w       = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h1] & op_19_15_d[5'h18];
+    assign inst_mulh_w      = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h1] & op_19_15_d[5'h19];
+    assign inst_mulh_wu     = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h1] & op_19_15_d[5'h1a];
+    assign inst_div_w       = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h2] & op_19_15_d[5'h00];
+    assign inst_mod_w       = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h2] & op_19_15_d[5'h01];
+    assign inst_div_wu      = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h2] & op_19_15_d[5'h02];
+    assign inst_mod_wu      = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h2] & op_19_15_d[5'h03];
+
+/***************************************************************************
+    alu_op[2:0] is also used as mul_op,
+    alu_op[3:0] is also used as div_op
+****************************************************************************/
     assign alu_op[ 0] = inst_add_w | inst_addi_w | inst_ld_w | inst_st_w
-                        | inst_jirl | inst_bl;
-    assign alu_op[ 1] = inst_sub_w;
-    assign alu_op[ 2] = inst_slt;
-    assign alu_op[ 3] = inst_sltu;
-    assign alu_op[ 4] = inst_and;
+                        | inst_jirl | inst_bl | inst_pcaddu12i | inst_mul_w
+                        | inst_div_w;
+    assign alu_op[ 1] = inst_sub_w | inst_mulh_w | inst_div_wu;
+    assign alu_op[ 2] = inst_slt | inst_slti | inst_mulh_wu | inst_mod_w;
+    assign alu_op[ 3] = inst_sltu | inst_sltui | inst_mod_wu;
+    assign alu_op[ 4] = inst_and | inst_andi;
     assign alu_op[ 5] = inst_nor;
-    assign alu_op[ 6] = inst_or;
-    assign alu_op[ 7] = inst_xor;
-    assign alu_op[ 8] = inst_slli_w;
-    assign alu_op[ 9] = inst_srli_w;
-    assign alu_op[10] = inst_srai_w;
+    assign alu_op[ 6] = inst_or | inst_ori;
+    assign alu_op[ 7] = inst_xor | inst_xori;
+    assign alu_op[ 8] = inst_slli_w | inst_sll_w;
+    assign alu_op[ 9] = inst_srli_w | inst_srl_w;
+    assign alu_op[10] = inst_srai_w | inst_sra_w;
     assign alu_op[11] = inst_lu12i_w;
 
     assign need_ui5   =  inst_slli_w | inst_srli_w | inst_srai_w;
-    assign need_si12  =  inst_addi_w | inst_ld_w | inst_st_w;
+    assign need_ui12  =  inst_andi   | inst_ori    | inst_xori;
+    assign need_si12  =  inst_addi_w | inst_ld_w | inst_st_w | inst_slti | inst_sltui;
     assign need_si16  =  inst_jirl | inst_beq | inst_bne;
-    assign need_si20  =  inst_lu12i_w;
+    assign need_si20  =  inst_lu12i_w | inst_pcaddu12i;
     assign need_si26  =  inst_b | inst_bl;
     assign src2_is_4  =  inst_jirl | inst_bl;
 
-    assign imm = src2_is_4 ? 32'h4                      :
-                need_si20 ? {i20[19:0], 12'b0}         :
-                need_si12 ? {{20{i12[11]}}, i12[11:0]} :
-                {27'b0, rk[4:0]};
+    assign imm =    {32{src2_is_4}} & {32'h4}
+                |   {32{need_si20}} & {i20[19:0], 12'b0}
+                |   {32{need_si12}} & {{20{i12[11]}}, i12[11:0]}
+                |   {32{need_ui5}} & {27'b0, rk[4:0]}
+                |   {32{need_ui12}} & {20'b0, i12[11:0]};
 
     assign br_offs = need_si26 ? {{ 4{i26[25]}}, i26[25:0], 2'b0} :
                                 {{14{i16[15]}}, i16[15:0], 2'b0} ;
@@ -188,7 +237,7 @@ module ID(
 
     assign src_reg_is_rd = inst_beq | inst_bne | inst_st_w;
 
-    assign src1_is_pc    = inst_jirl | inst_bl;
+    assign src1_is_pc    = inst_jirl | inst_bl | inst_pcaddu12i;
 
     assign src2_is_imm   = inst_slli_w |
                         inst_srli_w |
@@ -198,13 +247,21 @@ module ID(
                         inst_st_w   |
                         inst_lu12i_w|
                         inst_jirl   |
-                        inst_bl     ;
+                        inst_bl     |
+                        inst_slti   |
+                        inst_sltui  |
+                        inst_andi   |
+                        inst_ori    |
+                        inst_xori   |
+                        inst_pcaddu12i;
 
     assign res_from_mem  = inst_ld_w;
     assign dst_is_r1     = inst_bl;
     assign gr_we         = ~inst_st_w & ~inst_beq & ~inst_bne & ~inst_b;
     assign mem_we        = {4{inst_st_w}};           // to be fixed in exp10 (or so)
     assign mem_en        = res_from_mem | inst_st_w;
+    assign mul      = inst_mul_w | inst_mulh_w | inst_mulh_wu;
+    assign div      = inst_div_w | inst_div_wu | inst_mod_w | inst_mod_wu;
 
     assign dest          = dst_is_r1 ? 5'd1 : rd;
 
@@ -225,6 +282,10 @@ module ID(
                                                     /*inst_jirl*/ (rj_value + jirl_offs);
     assign br_cancel = br_taken;
 
+/*****************************************************************
+        alu_src1 is also used as mul_src1 and div_src1
+        alu_src2 is also used as mul_src2 and div_src2
+*****************************************************************/
     assign alu_src1 = src1_is_pc  ? pc[31:0] : rj_value;
     assign alu_src2 = src2_is_imm ? imm : rkd_value;
 
@@ -237,7 +298,7 @@ module ID(
     wire    [`ID2WB_LEN - 1:0]  IDreg_2WB;
 
     assign IDreg_valid      = valid;
-    assign IDreg_2EX        = {alu_op, alu_src1, alu_src2};
+    assign IDreg_2EX        = {alu_op, alu_src1, alu_src2, mul, div};
     assign IDreg_2MEM       = {rkd_value, mem_en, mem_we};
     assign IDreg_2WB        = {rf_we, res_from_mem, rf_waddr, pc};
 
