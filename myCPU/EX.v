@@ -47,7 +47,8 @@ module EX(
 
     wire            mem_en;
     wire    [31:0]  rkd_value;
-    wire    [3:0]   mem_we;
+    wire    [2:0]   st_ctrl;            // = {inst_st_w, inst_st_h, inst_st_b}
+    wire    [4:0]   ld_ctrl;
 
     wire            rf_we;
     wire            res_from_mem;
@@ -55,7 +56,7 @@ module EX(
     wire    [31:0]  pc;
 
     assign  {alu_op, alu_src1, alu_src2, mul, div}      = ID2EX_bus;
-    assign  {rkd_value, mem_en, mem_we}                 = ID2MEM_bus;
+    assign  {rkd_value, mem_en, st_ctrl, ld_ctrl}       = ID2MEM_bus;
     assign  {rf_we, res_from_mem, rf_waddr, pc}         = ID2WB_bus;
 
 // Define Signals
@@ -98,14 +99,27 @@ module EX(
     );
 
 // Access MEM
+    wire    [3:0]       mem_we;
+    wire    [31:0]      st_data;
+    assign mem_we   = {4{st_ctrl[0] & ~alu_result[0] & ~alu_result[1]}} & {4'b0001}
+                    | {4{st_ctrl[0] & alu_result[0] & ~alu_result[1]}} & {4'b0010}
+                    | {4{st_ctrl[0] & ~alu_result[0] & alu_result[1]}} & {4'b0100}
+                    | {4{st_ctrl[0] & alu_result[0] & alu_result[1]}} & {4'b1000}
+                    | {4{st_ctrl[1] & ~alu_result[1]}} & {4'b0011}
+                    | {4{st_ctrl[1] & alu_result[1]}} & {4'b1100}
+                    | {4{st_ctrl[2]}} & {4'b1111};
+    assign st_data  = {32{st_ctrl[0]}} & {4{rkd_value[7:0]}}
+                    | {32{st_ctrl[1]}} & {2{rkd_value[15:0]}}
+                    | {32{st_ctrl[2]}} & {rkd_value[31:0]};
+
     assign data_sram_en     = mem_en & valid;
-    assign data_sram_addr   = alu_result;
-    assign data_sram_wdata  = rkd_value;
+    assign data_sram_addr   = {alu_result[31:2], 2'b0};
+    assign data_sram_wdata  = st_data;
     assign data_sram_we     = mem_we & {4{valid}};
 
 // EXreg_bus
     assign EXreg_valid      = valid;
-    assign EXreg_2MEM       = {EX_result, rkd_value, mem_we};
+    assign EXreg_2MEM       = {EX_result, rkd_value, ld_ctrl};
     assign EXreg_2WB        = {rf_we, res_from_mem, rf_waddr, pc};
     assign EXreg_bus        = {EXreg_2MEM, EXreg_2WB};
 

@@ -51,7 +51,8 @@ module ID(
     wire        res_from_mem;
     wire        dst_is_r1;
     wire        gr_we;
-    wire [3: 0] mem_we;
+    wire [2: 0] st_ctrl;
+    wire [4: 0] ld_ctrl;
     wire        mem_en;
     wire        src_reg_is_rd;
     wire [4: 0] dest;
@@ -62,6 +63,8 @@ module ID(
     wire [31:0] jirl_offs;
 
     wire        rj_eq_rd;
+    wire        signed_rj_lt_rd;
+    wire        unsigned_rj_lt_rd;
 
     wire        rf_we;
     wire [4:0]  rf_waddr;
@@ -124,6 +127,20 @@ module ID(
     wire        inst_div_wu;
     wire        inst_mod_wu;
     wire        mul, div;
+
+    // User Branch Inst (exp11)
+    wire        inst_blt;
+    wire        inst_bge;
+    wire        inst_bltu;
+    wire        inst_bgeu;
+
+    // User Load/Store Inst (exp11)
+    wire        inst_ld_b;
+    wire        inst_ld_h;
+    wire        inst_ld_bu;
+    wire        inst_ld_hu;
+    wire        inst_st_b;
+    wire        inst_st_h;
 
     wire        need_ui5;
     wire        need_ui12;
@@ -197,13 +214,28 @@ module ID(
     assign inst_div_wu      = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h2] & op_19_15_d[5'h02];
     assign inst_mod_wu      = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h2] & op_19_15_d[5'h03];
 
-/***************************************************************************
-    alu_op[2:0] is also used as mul_op,
-    alu_op[3:0] is also used as div_op
-****************************************************************************/
+    // User Branch Inst (exp11)
+    assign inst_blt         = op_31_26_d[6'h18];
+    assign inst_bge         = op_31_26_d[6'h19];
+    assign inst_bltu        = op_31_26_d[6'h1a];
+    assign inst_bgeu        = op_31_26_d[6'h1b];
+
+    // User Load/Store Inst (exp11)
+    assign inst_ld_b        = op_31_26_d[6'h0a] & op_25_22_d[4'h0];
+    assign inst_ld_h        = op_31_26_d[6'h0a] & op_25_22_d[4'h1];
+    assign inst_st_b        = op_31_26_d[6'h0a] & op_25_22_d[4'h4];
+    assign inst_st_h        = op_31_26_d[6'h0a] & op_25_22_d[4'h5];
+    assign inst_ld_bu       = op_31_26_d[6'h0a] & op_25_22_d[4'h8];
+    assign inst_ld_hu       = op_31_26_d[6'h0a] & op_25_22_d[4'h9];
+
+    /***************************************************************************
+        alu_op[2:0] is also used as mul_op,
+        alu_op[3:0] is also used as div_op
+    ****************************************************************************/
     assign alu_op[ 0] = inst_add_w | inst_addi_w | inst_ld_w | inst_st_w
                         | inst_jirl | inst_bl | inst_pcaddu12i | inst_mul_w
-                        | inst_div_w;
+                        | inst_div_w | inst_ld_b | inst_ld_bu | inst_ld_h
+                        | inst_ld_hu | inst_st_b | inst_st_h;
     assign alu_op[ 1] = inst_sub_w | inst_mulh_w | inst_div_wu;
     assign alu_op[ 2] = inst_slt | inst_slti | inst_mulh_wu | inst_mod_w;
     assign alu_op[ 3] = inst_sltu | inst_sltui | inst_mod_wu;
@@ -218,7 +250,8 @@ module ID(
 
     assign need_ui5   =  inst_slli_w | inst_srli_w | inst_srai_w;
     assign need_ui12  =  inst_andi   | inst_ori    | inst_xori;
-    assign need_si12  =  inst_addi_w | inst_ld_w | inst_st_w | inst_slti | inst_sltui;
+    assign need_si12  =  inst_addi_w | inst_ld_w | inst_st_w | inst_slti | inst_sltui
+                        | inst_ld_b | inst_ld_bu | inst_ld_h | inst_ld_hu | inst_st_b | inst_st_h;
     assign need_si16  =  inst_jirl | inst_beq | inst_bne;
     assign need_si20  =  inst_lu12i_w | inst_pcaddu12i;
     assign need_si26  =  inst_b | inst_bl;
@@ -235,7 +268,7 @@ module ID(
 
     assign jirl_offs = {{14{i16[15]}}, i16[15:0], 2'b0};
 
-    assign src_reg_is_rd = inst_beq | inst_bne | inst_st_w;
+    assign src_reg_is_rd = inst_beq | inst_bne | inst_st_w | inst_blt | inst_bltu | inst_bge | inst_bgeu;
 
     assign src1_is_pc    = inst_jirl | inst_bl | inst_pcaddu12i;
 
@@ -253,12 +286,16 @@ module ID(
                         inst_andi   |
                         inst_ori    |
                         inst_xori   |
-                        inst_pcaddu12i;
+                        inst_pcaddu12i |
+                        inst_ld_b | inst_ld_bu | inst_ld_h | inst_ld_hu |
+                        inst_st_h | inst_st_b;
 
-    assign res_from_mem  = inst_ld_w;
+    assign res_from_mem  = inst_ld_w | inst_ld_b | inst_ld_bu | inst_ld_h | inst_ld_hu;
     assign dst_is_r1     = inst_bl;
-    assign gr_we         = ~inst_st_w & ~inst_beq & ~inst_bne & ~inst_b;
-    assign mem_we        = {4{inst_st_w}};           // to be fixed in exp10 (or so)
+    assign gr_we         =  ~inst_st_w & ~inst_st_b & ~inst_st_h &
+                            ~inst_beq & ~inst_bne & ~inst_b & ~inst_blt & ~inst_bge & ~inst_bltu & ~inst_bgeu;
+    assign st_ctrl  = {inst_st_w, inst_st_h, inst_st_b};
+    assign ld_ctrl  = {inst_ld_w, inst_ld_b, inst_ld_bu, inst_ld_h, inst_ld_hu};
     assign mem_en        = res_from_mem | inst_st_w;
     assign mul      = inst_mul_w | inst_mulh_w | inst_mulh_wu;
     assign div      = inst_div_w | inst_div_wu | inst_mod_w | inst_mod_wu;
@@ -271,21 +308,27 @@ module ID(
     assign rj_value  = addr1_occur? addr1_forward : rf_rdata1;
     assign rkd_value = addr2_occur? addr2_forward : rf_rdata2;
 
-    assign rj_eq_rd = (rj_value == rkd_value);
+    assign rj_eq_rd             = (rj_value == rkd_value);
+    assign signed_rj_lt_rd      = ($signed(rj_value) < $signed(rkd_value));
+    assign unsigned_rj_lt_rd    = (rj_value < rkd_value);
     assign br_taken = (   inst_beq  &&  rj_eq_rd
                     || inst_bne  && !rj_eq_rd
+                    || inst_blt && signed_rj_lt_rd
+                    || inst_bge && !signed_rj_lt_rd
+                    || inst_bltu && unsigned_rj_lt_rd
+                    || inst_bgeu && !unsigned_rj_lt_rd
                     || inst_jirl
                     || inst_bl
                     || inst_b
                     ) && valid;
-    assign br_target = (inst_beq || inst_bne || inst_bl || inst_b) ? (pc + br_offs) :
+    assign br_target = (inst_beq || inst_bne || inst_bl || inst_b || inst_blt || inst_bltu || inst_bge || inst_bgeu) ? (pc + br_offs) :
                                                     /*inst_jirl*/ (rj_value + jirl_offs);
     assign br_cancel = br_taken;
 
-/*****************************************************************
-        alu_src1 is also used as mul_src1 and div_src1
-        alu_src2 is also used as mul_src2 and div_src2
-*****************************************************************/
+    /*****************************************************************
+            alu_src1 is also used as mul_src1 and div_src1
+            alu_src2 is also used as mul_src2 and div_src2
+    *****************************************************************/
     assign alu_src1 = src1_is_pc  ? pc[31:0] : rj_value;
     assign alu_src2 = src2_is_imm ? imm : rkd_value;
 
@@ -299,7 +342,7 @@ module ID(
 
     assign IDreg_valid      = valid;
     assign IDreg_2EX        = {alu_op, alu_src1, alu_src2, mul, div};
-    assign IDreg_2MEM       = {rkd_value, mem_en, mem_we};
+    assign IDreg_2MEM       = {rkd_value, mem_en, st_ctrl, ld_ctrl};
     assign IDreg_2WB        = {rf_we, res_from_mem, rf_waddr, pc};
 
     assign IDreg_bus        = {IDreg_2EX, IDreg_2MEM, IDreg_2WB};

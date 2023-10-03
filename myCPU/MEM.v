@@ -28,9 +28,9 @@ module MEM(
         wire    [`EX2WB_LEN - 1:0]      EX2WB_bus;
         assign  {EX2MEM_bus, EX2WB_bus} = EXreg_bus;
 
-        wire    [31:0]  alu_result, rkd_value;
-        wire    [3:0]   mem_we;
-        assign  {alu_result, rkd_value, mem_we} = EX2MEM_bus;
+        wire    [31:0]  EX_result, rkd_value;
+        wire    [4:0]   ld_ctrl;            // = {inst_ld_w, inst_ld_b, inst_ld_bu, inst_ld_h, inst_ld_hu}
+        assign  {EX_result, rkd_value, ld_ctrl} = EX2MEM_bus;
 
         wire            rf_we;
         wire            res_from_mem;
@@ -40,19 +40,32 @@ module MEM(
 
     // Define Signals
         wire [31:0]     data;
+        wire [31:0]     MEM_result, word_res, byte_res, hbyte_res;
+        wire            is_sign_ext;
 
     // MEM
         assign data                 = data_sram_rdata;
+        assign is_sign_ext          = ld_ctrl[0] | ld_ctrl[2];
+        assign word_res             = data;
+        assign byte_res             = {32{~EX_result[1] & ~EX_result[0]}} & {{24{data[7] & is_sign_ext}}, data[7:0]}
+                                    | {32{~EX_result[1] & EX_result[0]}} & {{24{data[15] & is_sign_ext}}, data[15:8]}
+                                    | {32{EX_result[1] & ~EX_result[0]}} & {{24{data[23] & is_sign_ext}}, data[23:16]}
+                                    | {32{EX_result[1] & EX_result[0]}} & {{24{data[31] & is_sign_ext}}, data[31:24]};
+        assign hbyte_res            = {32{~EX_result[1]}} & {{16{data[15] & is_sign_ext}}, data[15:0]}
+                                    | {32{EX_result[1]}} & {{16{data[31] & is_sign_ext}}, data[31:16]};
+        assign MEM_result           = {32{ld_ctrl[4]}} & word_res
+                                    | {32{ld_ctrl[3] | ld_ctrl[2]}} & byte_res
+                                    | {32{ld_ctrl[1] | ld_ctrl[0]}} & hbyte_res;
 
     // control signals
         assign MEM_allow_in         = WB_allow_in & MEM_ready_go;
         assign MEM_ready_go         = 1;
 
     // data harzard bypass
-        assign MEM_bypass_bus   = {rf_waddr, rf_we & valid, res_from_mem, alu_result, data}; 
+        assign MEM_bypass_bus   = {rf_waddr, rf_we & valid, res_from_mem, EX_result, MEM_result}; 
 
     // MEMreg_bus
         assign MEMreg_valid         = valid;
-        assign MEMreg_bus           = {alu_result, data, rf_we, res_from_mem, rf_waddr, pc};
+        assign MEMreg_bus           = {EX_result, MEM_result, rf_we, res_from_mem, rf_waddr, pc};
 
 endmodule
