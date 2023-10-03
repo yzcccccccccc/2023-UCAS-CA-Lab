@@ -45,7 +45,7 @@ module MEM(
 
     // MEM
         assign data                 = data_sram_rdata;
-        assign is_sign_ext          = ld_ctrl[0] | ld_ctrl[2];
+        assign is_sign_ext          = ~(ld_ctrl[0] | ld_ctrl[2]);
         assign word_res             = data;
         assign byte_res             = {32{~EX_result[1] & ~EX_result[0]}} & {{24{data[7] & is_sign_ext}}, data[7:0]}
                                     | {32{~EX_result[1] & EX_result[0]}} & {{24{data[15] & is_sign_ext}}, data[15:8]}

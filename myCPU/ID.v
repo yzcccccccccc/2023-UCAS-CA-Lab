@@ -268,7 +268,8 @@ module ID(
 
     assign jirl_offs = {{14{i16[15]}}, i16[15:0], 2'b0};
 
-    assign src_reg_is_rd = inst_beq | inst_bne | inst_st_w | inst_blt | inst_bltu | inst_bge | inst_bgeu;
+    assign src_reg_is_rd = inst_beq | inst_bne | inst_st_w | inst_blt | inst_bltu | inst_bge | inst_bgeu
+                        | inst_st_b | inst_st_h;
 
     assign src1_is_pc    = inst_jirl | inst_bl | inst_pcaddu12i;
 
@@ -296,7 +297,7 @@ module ID(
                             ~inst_beq & ~inst_bne & ~inst_b & ~inst_blt & ~inst_bge & ~inst_bltu & ~inst_bgeu;
     assign st_ctrl  = {inst_st_w, inst_st_h, inst_st_b};
     assign ld_ctrl  = {inst_ld_w, inst_ld_b, inst_ld_bu, inst_ld_h, inst_ld_hu};
-    assign mem_en        = res_from_mem | inst_st_w;
+    assign mem_en        = res_from_mem | inst_st_w | inst_st_h | inst_st_b;
     assign mul      = inst_mul_w | inst_mulh_w | inst_mulh_wu;
     assign div      = inst_div_w | inst_div_wu | inst_mod_w | inst_mod_wu;
 
