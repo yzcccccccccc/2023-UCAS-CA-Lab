@@ -6,15 +6,15 @@
 
 `define ID2EX_LEN       78      /* ID2EX    = {alu_op, alu_src1, alu_src2, mul, div} */
 `define ID2MEM_LEN      41      /* ID2MEM   = {rkd_value, mem_en, st_ctrl, ld_ctrl} */
-`define ID2WB_LEN       39      /* ID2WB    = {rf_we, res_from_mem, rf_waddr, pc}*/
+`define ID2WB_LEN       39      /* ID2WB    = {rf_we, res_from_mem, rf_waddr, pc} */
 `define IDReg_BUS_LEN   158     /* = {ID2EX, ID2MEM, ID2WB} */
 
-`define EX2MEM_LEN      69      /* EX2MEM   = {EX_result, rdk_value, ld_ctrl}*/
-`define EX2WB_LEN       39
+`define EX2MEM_LEN      69      /* EX2MEM   = {EX_result, rdk_value, ld_ctrl} */
+`define EX2WB_LEN       39      /* EX2WB    = {rf_we, res_from_mem, rf_waddr, pc} */
 `define EXReg_BUS_LEN   108
 
 `define MEM2WB_LEN      103
-`define MEMReg_BUS_LEN  103
+`define MEMReg_BUS_LEN  103     /* = {EX_result, MEM_result, rf_we, res_from_mem, rf_waddr, pc}*/
 
 // Data Forward Bypass
 `define EX_BYPASS_LEN   39

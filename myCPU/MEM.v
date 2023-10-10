@@ -40,7 +40,7 @@ module MEM(
 
     // Define Signals
         wire [31:0]     data;
-        wire [31:0]     MEM_result, word_res, byte_res, hbyte_res;
+        wire [31:0]     MEM_result, word_res, byte_res, hword_res;
         wire            is_sign_ext;
 
     // MEM
@@ -51,11 +51,11 @@ module MEM(
                                     | {32{~EX_result[1] & EX_result[0]}} & {{24{data[15] & is_sign_ext}}, data[15:8]}
                                     | {32{EX_result[1] & ~EX_result[0]}} & {{24{data[23] & is_sign_ext}}, data[23:16]}
                                     | {32{EX_result[1] & EX_result[0]}} & {{24{data[31] & is_sign_ext}}, data[31:24]};
-        assign hbyte_res            = {32{~EX_result[1]}} & {{16{data[15] & is_sign_ext}}, data[15:0]}
+        assign hword_res            = {32{~EX_result[1]}} & {{16{data[15] & is_sign_ext}}, data[15:0]}
                                     | {32{EX_result[1]}} & {{16{data[31] & is_sign_ext}}, data[31:16]};
         assign MEM_result           = {32{ld_ctrl[4]}} & word_res
                                     | {32{ld_ctrl[3] | ld_ctrl[2]}} & byte_res
-                                    | {32{ld_ctrl[1] | ld_ctrl[0]}} & hbyte_res;
+                                    | {32{ld_ctrl[1] | ld_ctrl[0]}} & hword_res;
 
     // control signals
         assign MEM_allow_in         = WB_allow_in & MEM_ready_go;

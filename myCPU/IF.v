@@ -50,7 +50,7 @@ module IF(
     // IF
     assign inst_sram_we     = 4'b0;
     assign inst_sram_en     = ID_allow_in & ~reset;
-    assign inst_sram_addr   = ID_allow_in ? pc_next : pc;
+    assign inst_sram_addr   = ID_allow_in ? pc_next : pc;       // kind of 'blocking pc (instruction) in IF'.
     assign inst_sram_wdata  = 32'b0;
     assign inst             = inst_sram_rdata;
 
