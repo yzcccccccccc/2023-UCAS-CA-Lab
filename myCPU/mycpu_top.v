@@ -169,6 +169,12 @@ module mycpu_top(
             .clk(clk),
             .reset(reset),
             .valid(EXreg_valid),
+            /***************************************************
+                Hint:
+                Exreg_bus[139:108] is the result of multiplier.
+                directly from EX stage.
+                Kinda like mul for 2 clks.
+            ****************************************************/
             .EXreg_bus({EXreg[140],EXreg_bus[139:108],EXreg[107:0]}),
             .data_sram_rdata(data_sram_rdata),
             .EX_ready_go(EX_ready_go),

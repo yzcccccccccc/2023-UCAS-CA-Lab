@@ -24,15 +24,13 @@ module divider(
     assign signed_enable    = div_op[0] | div_op[2];
     assign unsigned_enable  = div_op[1] | div_op[3];
 
-    localparam INIT     = 4'b0001;
-    localparam WAIT     = 4'b0010;      // handshaking state
-    localparam EXE      = 4'b0100;      
-    localparam DONE     = 4'b1000;
+    localparam INIT     = 3'b001;
+    localparam WAIT     = 3'b010;      // handshaking state
+    localparam EXE      = 3'b100;      
 
     localparam isINIT   = 0;
     localparam isWAIT   = 1;
     localparam isEXE    = 2;
-    localparam isDONE   = 3;
 
 // AXI_Stream Control Signals for Xilinx ip
     wire        signed_divisor_tvalid;
@@ -48,7 +46,7 @@ module divider(
     wire        unsigned_dout_tvalid;  
 
 // Signed Divider FSM
-    reg     [3:0]       signed_current, signed_next;
+    reg     [2:0]       signed_current, signed_next;
     always @(posedge clk) begin
         if (reset) begin
             signed_current  <= INIT;
@@ -71,11 +69,10 @@ module divider(
             end
             EXE: begin
                 if (signed_dout_tvalid)
-                    signed_next <= DONE;
+                    signed_next <= WAIT;
                 else
                     signed_next <= EXE; 
             end
-            DONE: signed_next <= WAIT;
             default: signed_next <= INIT;
         endcase
     end
@@ -122,11 +119,10 @@ module divider(
             end
             EXE: begin
                 if (unsigned_dout_tvalid)
-                    unsigned_next <= DONE;
+                    unsigned_next <= WAIT;
                 else
                     unsigned_next <= EXE;
             end
-            DONE: unsigned_next <= WAIT;
             default: unsigned_next <= INIT;
         endcase
     end
@@ -153,6 +149,6 @@ module divider(
                     | {32{div_op[1]}} & unsigned_res[63:32]
                     | {32{div_op[2]}} & signed_res[31:0]
                     | {32{div_op[3]}} & unsigned_res[31:0];
-    assign div_done = signed_enable & signed_current[isDONE] | unsigned_enable & unsigned_current[isDONE];
+    assign div_done = signed_enable & signed_dout_tvalid | unsigned_enable & unsigned_dout_tvalid;
 
 endmodule
