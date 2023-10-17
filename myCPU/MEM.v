@@ -41,7 +41,7 @@ module MEM(
 
     // Define Signals
         wire [31:0]     data;
-        wire [31:0]     MEM_result, word_res, byte_res, hbyte_res;
+        wire [31:0]     MEM_result, word_res, byte_res, hword_res;
         wire [31:0]     MEM_final_result;
         wire            is_sign_ext;
 
