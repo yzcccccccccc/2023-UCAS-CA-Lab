@@ -81,6 +81,7 @@ module EX(
 
 // Multiplier
     multiplier u_mul(
+        .clk        (clk),
         .mul_src1   (alu_src1),
         .mul_src2   (alu_src2),
         .mul_op     (alu_op[2:0] & {3{valid}}),
@@ -119,7 +120,7 @@ module EX(
 
 // EXreg_bus
     assign EXreg_valid      = valid;
-    assign EXreg_2MEM       = {EX_result, rkd_value, ld_ctrl};
+    assign EXreg_2MEM       = {mul, mul_result, EX_result, rkd_value, ld_ctrl};
     assign EXreg_2WB        = {rf_we, res_from_mem, rf_waddr, pc};
     assign EXreg_bus        = {EXreg_2MEM, EXreg_2WB};
 
@@ -127,11 +128,10 @@ module EX(
     assign  EX_rf_waddr         = rf_waddr;
     assign  EX_rf_we            = rf_we & valid;
     assign  EX_res_from_mem     = res_from_mem;
-    assign  EX_result           =   mul ? mul_result :
-                                    div ? div_result :
+    assign  EX_result           =   div ? div_result :
                                     alu_result;
 
-    assign  EX_bypass_bus       = {EX_rf_waddr, EX_rf_we, EX_res_from_mem, EX_result};
+    assign  EX_bypass_bus       = {EX_rf_waddr, EX_rf_we, mul, EX_res_from_mem, EX_result};
 
 // control signals
     assign EX_ready_go      = (div & valid) ? div_done : 1;

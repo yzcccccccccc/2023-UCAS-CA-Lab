@@ -9,14 +9,14 @@
 `define ID2WB_LEN       39      /* ID2WB    = {rf_we, res_from_mem, rf_waddr, pc}*/
 `define IDReg_BUS_LEN   158     /* = {ID2EX, ID2MEM, ID2WB} */
 
-`define EX2MEM_LEN      69      /* EX2MEM   = {EX_result, rdk_value, ld_ctrl}*/
+`define EX2MEM_LEN      102      /* EX2MEM   = {mul, mul_result, EX_result, rdk_value, ld_ctrl}*/
 `define EX2WB_LEN       39
-`define EXReg_BUS_LEN   108
+`define EXReg_BUS_LEN   141
 
 `define MEM2WB_LEN      103
-`define MEMReg_BUS_LEN  103
+`define MEMReg_BUS_LEN  70
 
 // Data Forward Bypass
-`define EX_BYPASS_LEN   39
-`define MEM_BYPASS_LEN  71
+`define EX_BYPASS_LEN   40
+`define MEM_BYPASS_LEN  38
 `define WB_BYPASS_LEN   38
