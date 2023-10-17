@@ -25,7 +25,7 @@ module divider(
     assign unsigned_enable  = div_op[1] | div_op[3];
 
     localparam INIT     = 4'b0001;
-    localparam WAIT     = 4'b0010;      // handshaking
+    localparam WAIT     = 4'b0010;      // handshaking state
     localparam EXE      = 4'b0100;      
     localparam DONE     = 4'b1000;
 

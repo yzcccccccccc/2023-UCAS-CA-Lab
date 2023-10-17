@@ -53,11 +53,11 @@ module MEM(
                                     | {32{~EX_result[1] & EX_result[0]}} & {{24{data[15] & is_sign_ext}}, data[15:8]}
                                     | {32{EX_result[1] & ~EX_result[0]}} & {{24{data[23] & is_sign_ext}}, data[23:16]}
                                     | {32{EX_result[1] & EX_result[0]}} & {{24{data[31] & is_sign_ext}}, data[31:24]};
-        assign hbyte_res            = {32{~EX_result[1]}} & {{16{data[15] & is_sign_ext}}, data[15:0]}
+        assign hword_res            = {32{~EX_result[1]}} & {{16{data[15] & is_sign_ext}}, data[15:0]}
                                     | {32{EX_result[1]}} & {{16{data[31] & is_sign_ext}}, data[31:16]};
         assign MEM_result           = {32{ld_ctrl[4]}} & word_res
                                     | {32{ld_ctrl[3] | ld_ctrl[2]}} & byte_res
-                                    | {32{ld_ctrl[1] | ld_ctrl[0]}} & hbyte_res;
+                                    | {32{ld_ctrl[1] | ld_ctrl[0]}} & hword_res;
     
     // final_result
         assign MEM_final_result     = mul ? mul_result :
