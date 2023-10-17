@@ -5,7 +5,9 @@
         2023.10.2
 
     Version 0.2:
-        (to be continued :D)
+        Reduce FSM states.
+        Created By Yzcc
+        2023.10.17
 
 *******************************************************************/
 module divider(
