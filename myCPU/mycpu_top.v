@@ -169,7 +169,7 @@ module mycpu_top(
             .clk(clk),
             .reset(reset),
             .valid(EXreg_valid),
-            .EXreg_bus(EXreg),
+            .EXreg_bus({EXreg[140],EXreg_bus[139:108],EXreg[107:0]}),
             .data_sram_rdata(data_sram_rdata),
             .EX_ready_go(EX_ready_go),
             .WB_allow_in(WB_allow_in),

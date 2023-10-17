@@ -28,14 +28,14 @@ module WB(
     output  wire        WB_allow_in
 );
     // MEMreg Decode
-        wire    [31:0]  alu_result, mem_result, pc;
+        wire    [31:0]  final_result, pc;
         wire    [4:0]   rf_waddr_tmp;
-        wire    res_from_mem, rf_we_tmp;
-        assign  {alu_result, mem_result, rf_we_tmp, res_from_mem, rf_waddr_tmp, pc} = MEMreg_bus;
+        wire    rf_we_tmp;
+        assign  {final_result, rf_we_tmp, rf_waddr_tmp, pc} = MEMreg_bus;
 
     // Reg File
         assign  rf_waddr    = rf_waddr_tmp;
-        assign  rf_wdata    = res_from_mem ? mem_result : alu_result;
+        assign  rf_wdata    = final_result;
         assign  rf_we       = rf_we_tmp & valid;
         
     // debug

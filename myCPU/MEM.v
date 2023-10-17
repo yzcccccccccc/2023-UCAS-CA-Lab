@@ -28,9 +28,10 @@ module MEM(
         wire    [`EX2WB_LEN - 1:0]      EX2WB_bus;
         assign  {EX2MEM_bus, EX2WB_bus} = EXreg_bus;
 
-        wire    [31:0]  EX_result, rkd_value;
+        wire    [31:0]  mul_result, EX_result, rkd_value;
         wire    [4:0]   ld_ctrl;            // = {inst_ld_w, inst_ld_b, inst_ld_bu, inst_ld_h, inst_ld_hu}
-        assign  {EX_result, rkd_value, ld_ctrl} = EX2MEM_bus;
+        wire            mul;
+        assign  {mul, mul_result, EX_result, rkd_value, ld_ctrl} = EX2MEM_bus;
 
         wire            rf_we;
         wire            res_from_mem;
@@ -40,7 +41,8 @@ module MEM(
 
     // Define Signals
         wire [31:0]     data;
-        wire [31:0]     MEM_result, word_res, byte_res, hword_res;
+        wire [31:0]     MEM_result, word_res, byte_res, hbyte_res;
+        wire [31:0]     MEM_final_result;
         wire            is_sign_ext;
 
     // MEM
@@ -56,16 +58,21 @@ module MEM(
         assign MEM_result           = {32{ld_ctrl[4]}} & word_res
                                     | {32{ld_ctrl[3] | ld_ctrl[2]}} & byte_res
                                     | {32{ld_ctrl[1] | ld_ctrl[0]}} & hword_res;
-
+    
+    // final_result
+        assign MEM_final_result     = mul ? mul_result :
+                                    res_from_mem ? MEM_result :
+                                    EX_result;
+                                    
     // control signals
         assign MEM_allow_in         = WB_allow_in & MEM_ready_go;
         assign MEM_ready_go         = 1;
 
     // data harzard bypass
-        assign MEM_bypass_bus   = {rf_waddr, rf_we & valid, res_from_mem, EX_result, MEM_result}; 
+        assign MEM_bypass_bus   = {rf_waddr, rf_we & valid, MEM_final_result}; 
 
     // MEMreg_bus
         assign MEMreg_valid         = valid;
-        assign MEMreg_bus           = {EX_result, MEM_result, rf_we, res_from_mem, rf_waddr, pc};
+        assign MEMreg_bus           = {MEM_final_result, rf_we, rf_waddr, pc};
 
 endmodule

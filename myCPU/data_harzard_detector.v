@@ -15,15 +15,14 @@ module data_harzard_detector(
 );
     // Bypass-Bus Decode
         wire    [4:0]       EX_rf_waddr;
-        wire                EX_rf_we, EX_res_from_mem;
+        wire                EX_rf_we, EX_mul, EX_res_from_mem;
         wire    [31:0]      EX_result;
-        assign {EX_rf_waddr, EX_rf_we, EX_res_from_mem, EX_result}          = EX_bypass_bus;
+        assign {EX_rf_waddr, EX_rf_we, EX_mul, EX_res_from_mem, EX_result}          = EX_bypass_bus;
 
         wire    [4:0]       MEM_rf_waddr;
         wire                MEM_rf_we, MEM_rfm;
-        wire    [31:0]      MEM_exres, MEM_memres, MEM_result;
-        assign {MEM_rf_waddr, MEM_rf_we, MEM_rfm, MEM_exres, MEM_memres}    = MEM_bypass_bus;
-        assign MEM_result   = MEM_rfm ? MEM_memres : MEM_exres;
+        wire    [31:0]      MEM_exres, MEM_memres, MEM_final_result;
+        assign {MEM_rf_waddr, MEM_rf_we, MEM_final_result}    = MEM_bypass_bus;
 
         wire    [4:0]       WB_rf_waddr;
         wire                WB_rf_we;
@@ -42,12 +41,12 @@ module data_harzard_detector(
                         & (|rf_raddr2);
     
     assign addr1_forward = (rf_raddr1 == EX_rf_waddr && EX_rf_we == 1'b1) ? EX_result
-                        : ((rf_raddr1 == MEM_rf_waddr && MEM_rf_we == 1'b1) ? MEM_result : WB_result);
+                        : ((rf_raddr1 == MEM_rf_waddr && MEM_rf_we == 1'b1) ? MEM_final_result : WB_result);
     
     assign addr2_forward = (rf_raddr2 == EX_rf_waddr && EX_rf_we == 1'b1) ? EX_result
-                        : ((rf_raddr2 == MEM_rf_waddr && MEM_rf_we == 1'b1) ? MEM_result : WB_result);
+                        : ((rf_raddr2 == MEM_rf_waddr && MEM_rf_we == 1'b1) ? MEM_final_result : WB_result);
     
     // pause(block) while EX is a load-type inst and harzard happen.
-    assign pause        = (|rf_raddr1) & EX_rf_we & EX_res_from_mem & (rf_raddr1 == EX_rf_waddr)
-                        | (|rf_raddr2) & EX_rf_we & EX_res_from_mem & (rf_raddr2 == EX_rf_waddr);
+    assign pause        = (|rf_raddr1) & EX_rf_we & (EX_mul | EX_res_from_mem) & (rf_raddr1 == EX_rf_waddr)
+                        | (|rf_raddr2) & EX_rf_we & (EX_mul | EX_res_from_mem) & (rf_raddr2 == EX_rf_waddr);
 endmodule
