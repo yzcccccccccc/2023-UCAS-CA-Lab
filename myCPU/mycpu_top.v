@@ -35,20 +35,26 @@ module mycpu_top(
         wire    [`BR_BUS_LEN - 1:0]         BR_BUS;
 
         wire                                toIFreg_valid_bus;
+        wire                                toIFreg_excep_bus;
         wire    [`IFReg_BUS_LEN - 1:0]      IFreg_bus;
 
         wire                                toIDreg_valid_bus;
+        wire                                toIDreg_excep_bus;      // exp12
         wire    [`IDReg_BUS_LEN - 1:0]      IDreg_bus;
 
         wire                                toEXreg_valid_bus;
+        wire                                toEXreg_excep_bus;      // exp12
         wire    [`EXReg_BUS_LEN - 1:0]      EXreg_bus;
 
         wire                                toMEMreg_valid_bus;
+        wire                                toMEMreg_excep_bus;     // exp12
         wire    [`MEMReg_BUS_LEN - 1:0]     MEMreg_bus;
 
         wire    [`EX_BYPASS_LEN - 1:0]      EX_bypass_bus;
         wire    [`MEM_BYPASS_LEN - 1:0]     MEM_bypass_bus;
         wire    [`WB_BYPASS_LEN - 1:0]      WB_bypass_bus;
+
+        wire    [`WB2CSR_LEN - 1:0]         CSR_in_bus;
 
     // control signals
         wire    IF_ready_go, ID_allow_in, ID_ready_go,
@@ -58,18 +64,22 @@ module mycpu_top(
 // Regs
     // IFreg
         reg                             IFreg_valid;
+        reg                             IFreg_excep;        // exp12
         reg     [`IFReg_BUS_LEN - 1:0]  IFreg;
 
     // IDreg
         reg                             IDreg_valid;
+        reg                             IDreg_excep;        // exp12
         reg     [`IDReg_BUS_LEN - 1:0]  IDreg;
 
     // EXreg
         reg                             EXreg_valid;
+        reg                             EXreg_excep;        // exp12
         reg     [`EXReg_BUS_LEN - 1:0]  EXreg;
 
     // MEMreg
         reg                             MEMreg_valid;
+        reg                             MEMreg_excep;       // exp12
         reg     [`MEMReg_BUS_LEN - 1:0] MEMreg;
 
 // RegFile
@@ -85,6 +95,27 @@ module mycpu_top(
         .we(rf_we),
         .waddr(rf_waddr),
         .wdata(rf_wdata)
+    );
+
+// CSR
+    wire    [13:0]      csr_num;
+    wire    [31:0]      csr_rvalue, csr_wmask, csr_wvalue;
+    wire                csr_re, csr_we, csr_has_int;
+    wire    [31:0]      csr_ex_entry, csr_ertn_entry;
+
+    csr u_csr(
+        .clk(clk),
+        .reset(reset),
+        .csr_re(csr_re),
+        .csr_num(csr_num),
+        .csr_rvalue(csr_rvalue),
+        .csr_we(csr_we),
+        .csr_wmask(csr_wmask),
+        .csr_wvalue(csr_wvalue),
+        .CSR_in_bus(CSR_in_bus),
+        .ex_entry(csr_ex_entry),
+        .ertn_entry(csr_ertn_entry),
+        .has_int(csr_has_int)
     );
 
 // Data Harzard Detect
@@ -116,7 +147,9 @@ module mycpu_top(
             .inst_sram_rdata(inst_sram_rdata),
             .IF_ready_go(IF_ready_go),
             .ID_allow_in(ID_allow_in),
+
             .IFreg_valid(toIFreg_valid_bus),
+            .IFreg_excep(toIFreg_excep_bus),
             .IFreg_bus(IFreg_bus),
             .BR_BUS(BR_BUS)
         );
@@ -135,8 +168,11 @@ module mycpu_top(
             .rf_raddr2(rf_raddr2),
             .rf_rdata1(rf_rdata1),
             .rf_rdata2(rf_rdata2),
+
             .IDreg_valid(toIDreg_valid_bus),
+            .IDreg_excep(toIDreg_excep_bus),
             .IDreg_bus(IDreg_bus),
+
             .pause(pause),
             .addr1_forward(addr1_forward),
             .addr1_occur(addr1_occur),
@@ -160,7 +196,9 @@ module mycpu_top(
             .data_sram_wdata(data_sram_wdata),
             .data_sram_we(data_sram_we),
             .EX_bypass_bus(EX_bypass_bus),
+
             .EXreg_valid(toEXreg_valid_bus),
+            .EXreg_excep(toEXreg_excep_bus),
             .EXreg_bus(EXreg_bus)
         );
 
@@ -183,6 +221,7 @@ module mycpu_top(
             .MEM_ready_go(MEM_ready_go),
             .MEM_bypass_bus(MEM_bypass_bus),
             .MEMreg_valid(toMEMreg_valid_bus),
+            .MEMreg_excep(toMEMreg_excep_bus),
             .MEMreg_bus(MEMreg_bus)
         ); 
 
@@ -210,11 +249,13 @@ module mycpu_top(
         always @(posedge clk) begin
             if (reset) begin
                 IFreg_valid     <= 0;
+                IFreg_excep     <= 0;
                 IFreg           <= 0;
             end
             else begin
                 if (IF_ready_go & ID_allow_in) begin
                     IFreg_valid     <= toIFreg_valid_bus;
+                    IFreg_excep     <= toIFreg_excep_bus;
                     IFreg           <= IFreg_bus;
                 end
                 else begin
@@ -229,11 +270,13 @@ module mycpu_top(
         always @(posedge clk) begin
             if (reset) begin
                 IDreg_valid     <= 0;
+                IDreg_excep     <= 0;
                 IDreg           <= 0;
             end
             else begin
                 if (ID_ready_go & EX_allow_in) begin
                     IDreg_valid     <= toIDreg_valid_bus;
+                    IDreg_excep     <= toIDreg_excep_bus;
                     IDreg           <= IDreg_bus;
                 end
                 else begin
@@ -248,11 +291,13 @@ module mycpu_top(
         always @(posedge clk) begin
             if (reset) begin
                 EXreg_valid     <= 0;
+                EXreg_excep     <= 0;
                 EXreg           <= 0;
             end
             else begin
                 if (EX_ready_go & MEM_allow_in) begin
                     EXreg_valid     <= toEXreg_valid_bus;
+                    EXreg_excep     <= toEXreg_excep_bus;
                     EXreg           <= EXreg_bus;
                 end
                 else begin
@@ -267,11 +312,13 @@ module mycpu_top(
         always @(posedge clk) begin
             if (reset) begin
                 MEMreg_valid    <= 0;
+                MEMreg_excep    <= 0;
                 MEMreg          <= 0;
             end
             else begin
                 if (MEM_ready_go & WB_allow_in) begin
                     MEMreg_valid    <= toMEMreg_valid_bus;
+                    MEMreg_excep    <= toMEMreg_excep_bus;
                     MEMreg          <= MEMreg_bus;
                 end
                 else begin

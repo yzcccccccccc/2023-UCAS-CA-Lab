@@ -29,6 +29,7 @@ module ID(
 
     // IDreg bus
     output  wire                        IDreg_valid,
+    output  wire                        IDreg_excep,
     output  wire [`IDReg_BUS_LEN - 1:0] IDreg_bus,
     
     // BR bus

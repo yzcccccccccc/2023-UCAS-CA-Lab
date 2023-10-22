@@ -24,6 +24,7 @@ module EX(
 
     // EXreg bus
     output  wire                        EXreg_valid,
+    output  wire                        EXreg_excep,
     output  wire [`EXReg_BUS_LEN - 1:0] EXreg_bus
 
 );

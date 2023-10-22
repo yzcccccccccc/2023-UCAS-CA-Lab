@@ -14,15 +14,20 @@ module csr(
     input   wire [31:0] csr_wmask       // mask
     input   wire [31:0] csr_wvalue      // write value
 
-    input   wire        ertn_flush,     // ertn signal from WB
-    input   wire        wb_ex.          // interrupt trigger from WB
-    input   wire [5:0]  wb_ecode,
-    input   wire [8:0]  wb_esubcode,
-    input   wire [31:0] wb_pc,
+    input   wire [`WB2CSR_LEN - 1:0]    CSR_in_bus,
+
     output  wire [31:0] ex_entry,       // entry vec ! (interrupt-handler addr)
-    output  wire [31:0] ertn_entry,     // entry entry ! (restore form interruption)
+    output  wire [31:0] ertn_entry,     // ertn entry ! (restore from interruption, epc)
     output  wire        has_int         // interrupt trigger ! (to ID)
 );
+
+// CSR bus decode
+    wire        ertn_flush;     // ertn signal from WB
+    wire        wb_ex;          // interrupt trigger from WB
+    wire [5:0]  wb_ecode;
+    wire [8:0]  wb_esubcode;
+    wire [31:0] wb_pc;
+    assign {ertn_flush, wb_ex, wb_ecode, wb_esubcode, wb_pc}    = CSR_in_bus;
 
 // CSR regs
     // CRMD reg
@@ -204,5 +209,10 @@ module csr(
     assign has_int      = crmd_ie & (|(ecfg_lie & estat_is));
     assign ertn_entry   = era_rvalue;
     assign ex_entry     = eentry_rvalue;
+
+/************************************************************************
+    Hint:
+        About has_int: 
+************************************************************************/
 
 endmodule

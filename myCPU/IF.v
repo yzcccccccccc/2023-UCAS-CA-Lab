@@ -17,6 +17,7 @@ module IF(
 
     // IFreg bus
     output wire                         IFreg_valid,
+    output wire                         IFreg_excep,
     output wire [`IFReg_BUS_LEN - 1:0]  IFreg_bus,
 
     // BR_BUS (={br_target, br_taken})

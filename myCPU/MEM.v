@@ -21,6 +21,7 @@ module MEM(
 
     // MEMReg bus
     output  wire                            MEMreg_valid,
+    output  wire                            MEMreg_excep,
     output  wire [`MEMReg_BUS_LEN - 1:0]    MEMreg_bus
 );
     // EXreg_bus Decode

@@ -9,7 +9,7 @@
 `define ID2WB_LEN       39      /* ID2WB    = {rf_we, res_from_mem, rf_waddr, pc} */
 `define IDReg_BUS_LEN   158     /* = {ID2EX, ID2MEM, ID2WB} */
 
-`define EX2MEM_LEN      102      /* EX2MEM   = {mul, mul_result, EX_result, rdk_value, ld_ctrl}*/
+`define EX2MEM_LEN      102     /* EX2MEM   = {mul, mul_result, EX_result, rdk_value, ld_ctrl}*/
 `define EX2WB_LEN       39
 `define EXReg_BUS_LEN   141
 
@@ -63,3 +63,6 @@
 `define CSR_ERA_PC      31:0
 `define CSR_EENTRY_VA   31:6
 `define CSR_SAVE_DATA   31:0
+
+// WB to CSR bus
+`define WB2CSR_LEN      49          /* = {ertn_flush, wb_ex, wb_ecode[5:0], wb_esubcode[8:0], wb_pc[31:0]} */
