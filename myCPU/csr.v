@@ -183,7 +183,7 @@ module csr(
     wire    [31:0]      crmd_rvalue, prmd_rvalue, ecfg_rvalue, estat_rvalue, era_rvalue, eentry_rvalue;
     wire    [31:0]      save0_rvalue, save1_rvalue, save2_rvalue, save3_rvalue;
 
-    assign crmd_rvalue      = {24'b0, crmd_datm, crmd_datf, crmd_pg, crmd_da, crmd_plv};
+    assign crmd_rvalue      = {24'b0, crmd_datm, crmd_datf, crmd_pg, crmd_da, crmd_ie, crmd_plv};
     assign prmd_rvalue      = {29'b0, prmd_pie, prmd_pplv};
     assign ecfg_rvalue      = {19'b0, ecfg_lie};
     assign estat_rvalue     = {1'b0, estat_esubcode, estat_ecode, 3'b0, estat_is};
