@@ -11,8 +11,8 @@ module csr(
     input   wire [13:0] csr_num,        // addr
     output  wire [31:0] csr_rvalue,     // return value
     input   wire        csr_we,         // write enable
-    input   wire [31:0] csr_wmask       // mask
-    input   wire [31:0] csr_wvalue      // write value
+    input   wire [31:0] csr_wmask,      // mask
+    input   wire [31:0] csr_wvalue,     // write value
 
     input   wire [`WB2CSR_LEN - 1:0]    CSR_in_bus,
 
@@ -104,7 +104,7 @@ module csr(
         end
         else
             if (csr_we && csr_num == `CSR_PRMD) begin
-                prmd_pplv   <= csr_wmask[`CSR_PRMD_PPLV] & csr_wvalue[`CSR_PRMMD_PPLV]
+                prmd_pplv   <= csr_wmask[`CSR_PRMD_PPLV] & csr_wvalue[`CSR_PRMD_PPLV]
                             | ~csr_wmask[`CSR_PRMD_PPLV] & prmd_pplv;
                 prmd_pie    <= csr_wmask[`CSR_PRMD_PIE] & csr_wvalue[`CSR_PRMD_PIE]
                             | ~csr_wmask[`CSR_PRMD_PIE] & prmd_pie;
@@ -200,10 +200,10 @@ module csr(
                             | {32{csr_num == `CSR_ESTAT}} & estat_rvalue
                             | {32{csr_num == `CSR_ERA}} & era_rvalue
                             | {32{csr_num == `CSR_EENTRY}} & eentry_rvalue
-                            | {32{csr_num == `SAVE0}} & save0_rvalue
-                            | {32{csr_num == `SAVE1}} & save1_rvalue
-                            | {32{csr_num == `SAVE2}} & save2_rvalue
-                            | {32{csr_num == `SAVE3}} & save3_rvalue;
+                            | {32{csr_num == `CSR_SAVE0}} & save0_rvalue
+                            | {32{csr_num == `CSR_SAVE1}} & save1_rvalue
+                            | {32{csr_num == `CSR_SAVE2}} & save2_rvalue
+                            | {32{csr_num == `CSR_SAVE3}} & save3_rvalue;
 
 // Output signals
     assign has_int      = crmd_ie & (|(ecfg_lie & estat_is));

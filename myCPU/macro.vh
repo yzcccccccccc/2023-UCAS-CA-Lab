@@ -66,3 +66,21 @@
 
 // WB to CSR bus
 `define WB2CSR_LEN      49          /* = {ertn_flush, wb_ex, wb_ecode[5:0], wb_esubcode[8:0], wb_pc[31:0]} */
+
+// CSR Exception Code
+`define INT         6'h00
+`define PIL         6'h01
+`define PIS         6'h02
+`define PIF         6'h03
+`define PME         6'h04
+`define PPI         6'h07
+`define ADEF        6'h08
+`define ADEM        6'h08
+`define ALE         6'h09
+`define SYS         6'h0b
+`define BRK         6'h0c
+`define INE         6'h0d
+`define IPE         6'h0e
+`define FPD         6'h0f
+`define FPE         6'h12
+`define TLBR        6'h3f
