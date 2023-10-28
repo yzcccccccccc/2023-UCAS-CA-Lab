@@ -1,332 +1,386 @@
 `include "macro.vh"
 module mycpu_top(
-    input   wire        clk,
-    input   wire        resetn,
+           input   wire        clk,
+           input   wire        resetn,
 
-    // inst sram interface
-    output  wire        inst_sram_en,
-    output  wire [3:0]  inst_sram_we,
-    output  wire [31:0] inst_sram_wdata,
-    output  wire [31:0] inst_sram_addr,
-    input   wire [31:0] inst_sram_rdata,
+           // inst sram interface
+           output  wire        inst_sram_en,
+           output  wire [3:0]  inst_sram_we,
+           output  wire [31:0] inst_sram_wdata,
+           output  wire [31:0] inst_sram_addr,
+           input   wire [31:0] inst_sram_rdata,
 
-    // data sram interface
-    output  wire        data_sram_en,
-    output  wire [3:0]  data_sram_we,
-    output  wire [31:0] data_sram_wdata,
-    output  wire [31:0] data_sram_addr,
-    input   wire [31:0] data_sram_rdata,
+           // data sram interface
+           output  wire        data_sram_en,
+           output  wire [3:0]  data_sram_we,
+           output  wire [31:0] data_sram_wdata,
+           output  wire [31:0] data_sram_addr,
+           input   wire [31:0] data_sram_rdata,
 
-    // trace debug interface
-    output  wire [31:0] debug_wb_pc,
-    output  wire [3:0]  debug_wb_rf_we,
-    output  wire [4:0]  debug_wb_rf_wnum,
-    output  wire [31:0] debug_wb_rf_wdata
-);
+           // trace debug interface
+           output  wire [31:0] debug_wb_pc,
+           output  wire [3:0]  debug_wb_rf_we,
+           output  wire [4:0]  debug_wb_rf_wnum,
+           output  wire [31:0] debug_wb_rf_wdata
+       );
 
 // reset signal
-    reg     reset;
-    always @(posedge clk) begin
-        reset <= ~resetn;
-    end
+reg     reset;
+always @(posedge clk)
+begin
+    reset <= ~resetn;
+end
 
 // Bus & piepeline control signals
-    // bus
-        wire    [`BR_BUS_LEN - 1:0]         BR_BUS;
+// bus
+wire    [`BR_BUS_LEN - 1:0]         BR_BUS;
 
-        wire                                toIFreg_valid_bus;
-        wire                                toIFreg_excep_bus;
-        wire    [`IFReg_BUS_LEN - 1:0]      IFreg_bus;
+wire                                toIFreg_valid_bus;
+wire                                toIFreg_excep_bus;
+wire    [`IFReg_BUS_LEN - 1:0]      IFreg_bus;
 
-        wire                                toIDreg_valid_bus;
-        wire                                toIDreg_excep_bus;      // exp12
-        wire    [`IDReg_BUS_LEN - 1:0]      IDreg_bus;
+wire                                toIDreg_valid_bus;
+wire                                toIDreg_excep_bus;      // exp12
+wire    [`IDReg_BUS_LEN - 1:0]      IDreg_bus;
 
-        wire                                toEXreg_valid_bus;
-        wire                                toEXreg_excep_bus;      // exp12
-        wire    [`EXReg_BUS_LEN - 1:0]      EXreg_bus;
+wire                                toEXreg_valid_bus;
+wire                                toEXreg_excep_bus;      // exp12
+wire    [`EXReg_BUS_LEN - 1:0]      EXreg_bus;
 
-        wire                                toMEMreg_valid_bus;
-        wire                                toMEMreg_excep_bus;     // exp12
-        wire    [`MEMReg_BUS_LEN - 1:0]     MEMreg_bus;
+wire                                toMEMreg_valid_bus;
+wire                                toMEMreg_excep_bus;     // exp12
+wire    [`MEMReg_BUS_LEN - 1:0]     MEMreg_bus;
 
-        wire    [`EX_BYPASS_LEN - 1:0]      EX_bypass_bus;
-        wire    [`MEM_BYPASS_LEN - 1:0]     MEM_bypass_bus;
-        wire    [`WB_BYPASS_LEN - 1:0]      WB_bypass_bus;
+wire    [`EX_BYPASS_LEN - 1:0]      EX_bypass_bus;
+wire    [`MEM_BYPASS_LEN - 1:0]     MEM_bypass_bus;
+wire    [`WB_BYPASS_LEN - 1:0]      WB_bypass_bus;
 
-        wire    [`WB2CSR_LEN - 1:0]         CSR_in_bus;
+wire    [`WB2CSR_LEN - 1:0]         CSR_in_bus;
 
-    // control signals
-        wire    IF_ready_go, ID_allow_in, ID_ready_go,
-                EX_ready_go, EX_allow_in, MEM_allow_in,
-                MEM_ready_go, WB_allow_in, WB_ready_go;
+// control signals
+wire    IF_ready_go, ID_allow_in, ID_ready_go,
+        EX_ready_go, EX_allow_in, MEM_allow_in,
+        MEM_ready_go, WB_allow_in, WB_ready_go;
 
 // Regs
-    // IFreg
-        reg                             IFreg_valid;
-        reg                             IFreg_excep;        // exp12
-        reg     [`IFReg_BUS_LEN - 1:0]  IFreg;
+// IFreg
+reg                             IFreg_valid;
+reg                             IFreg_excep;        // exp12
+reg     [`IFReg_BUS_LEN - 1:0]  IFreg;
 
-    // IDreg
-        reg                             IDreg_valid;
-        reg                             IDreg_excep;        // exp12
-        reg     [`IDReg_BUS_LEN - 1:0]  IDreg;
+// IDreg
+reg                             IDreg_valid;
+reg                             IDreg_excep;        // exp12
+reg     [`IDReg_BUS_LEN - 1:0]  IDreg;
 
-    // EXreg
-        reg                             EXreg_valid;
-        reg                             EXreg_excep;        // exp12
-        reg     [`EXReg_BUS_LEN - 1:0]  EXreg;
+// EXreg
+reg                             EXreg_valid;
+reg                             EXreg_excep;        // exp12
+reg     [`EXReg_BUS_LEN - 1:0]  EXreg;
 
-    // MEMreg
-        reg                             MEMreg_valid;
-        reg                             MEMreg_excep;       // exp12
-        reg     [`MEMReg_BUS_LEN - 1:0] MEMreg;
+// MEMreg
+reg                             MEMreg_valid;
+reg                             MEMreg_excep;       // exp12
+reg     [`MEMReg_BUS_LEN - 1:0] MEMreg;
 
 // RegFile
-    wire    [4:0]       rf_raddr1, rf_raddr2, rf_waddr;
-    wire    [31:0]      rf_rdata1, rf_rdata2, rf_wdata;
-    wire                rf_we;
-    regfile u_regfile(
-        .clk(clk),
-        .raddr1(rf_raddr1),
-        .raddr2(rf_raddr2),
-        .rdata1(rf_rdata1),
-        .rdata2(rf_rdata2),
-        .we(rf_we),
-        .waddr(rf_waddr),
-        .wdata(rf_wdata)
-    );
+wire    [4:0]       rf_raddr1, rf_raddr2, rf_waddr;
+wire    [31:0]      rf_rdata1, rf_rdata2, rf_wdata;
+wire                rf_we;
+regfile u_regfile(
+            .clk(clk),
+            .raddr1(rf_raddr1),
+            .raddr2(rf_raddr2),
+            .rdata1(rf_rdata1),
+            .rdata2(rf_rdata2),
+            .we(rf_we),
+            .waddr(rf_waddr),
+            .wdata(rf_wdata)
+        );
 
 // CSR
-    wire    [13:0]      csr_num;
-    wire    [31:0]      csr_rvalue, csr_wmask, csr_wvalue;
-    wire                csr_re, csr_we, csr_has_int;
-    wire    [31:0]      csr_ex_entry, csr_ertn_entry;
+wire    [79:0]      csr_ctrl;
+wire    [31:0]      csr_rvalue;
+wire [31:0] ex_entry;
+wire [31:0] era_pc;
+wire has_int;
+wire ertn_flush;
+wire wb_ex;
+wire [31:0] wb_pc;
+wire [5:0] wb_ecode;
+wire [8:0] wb_esubcode;
 
-    csr u_csr(
+csr u_csr(
         .clk(clk),
         .reset(reset),
-        .csr_re(csr_re),
-        .csr_num(csr_num),
+
+        // inst interface
+        .csr_ctrl(csr_ctrl),
         .csr_rvalue(csr_rvalue),
-        .csr_we(csr_we),
-        .csr_wmask(csr_wmask),
-        .csr_wvalue(csr_wvalue),
-        .CSR_in_bus(CSR_in_bus),
-        .ex_entry(csr_ex_entry),
-        .ertn_entry(csr_ertn_entry),
-        .has_int(csr_has_int)
+
+        // circuit interface
+        .ex_entry(ex_entry),
+        .era_pc(era_pc),
+        .has_int(has_int),
+        .ertn_flush(ertn_flush),
+        .wb_ex(wb_ex),
+        .wb_pc(wb_pc),
+        .wb_ecode(wb_ecode),
+        .wb_esubcode(wb_esubcode)
     );
 
 // Data Harzard Detect
-    wire    [31:0]  addr1_forward, addr2_forward;
-    wire            pause, addr1_occur, addr2_occur;
+wire    [31:0]  addr1_forward, addr2_forward;
+wire            pause, addr1_occur, addr2_occur;
 
-    data_harzard_detector u_dhd(
+data_harzard_detector u_dhd(
+                          .rf_raddr1(rf_raddr1),
+                          .rf_raddr2(rf_raddr2),
+                          .EX_bypass_bus(EX_bypass_bus),
+                          .MEM_bypass_bus(MEM_bypass_bus),
+                          .WB_bypass_bus(WB_bypass_bus),
+                          .pause(pause),
+                          .addr1_forward(addr1_forward),
+                          .addr1_occur(addr1_occur),
+                          .addr2_forward(addr2_forward),
+                          .addr2_occur(addr2_occur)
+                      );
+
+// Store disable
+wire store_disable = EXreg_bus[121] | MEMreg_bus[152] | wb_ex;
+
+// Pipeline states
+// IF
+IF  u_IF(
+        .clk(clk),
+        .reset(reset),
+        .inst_sram_we(inst_sram_we),
+        .inst_sram_en(inst_sram_en),
+        .inst_sram_addr(inst_sram_addr),
+        .inst_sram_wdata(inst_sram_wdata),
+        .inst_sram_rdata(inst_sram_rdata),
+        .IF_ready_go(IF_ready_go),
+        .ID_allow_in(ID_allow_in),
+
+        .wb_ex(wb_ex),
+        .ex_entry(ex_entry),
+        .IFreg_valid(toIFreg_valid_bus),
+        .IFreg_excep(toIFreg_excep_bus),
+        .IFreg_bus(IFreg_bus),
+        .BR_BUS(BR_BUS),
+
+        .ertn_flush(ertn_flush),
+        .era_pc(era_pc)
+    );
+
+// ID
+ID  u_ID(
+        .clk(clk),
+        .reset(reset||wb_ex||ertn_flush),
+        .valid(IFreg_valid),
+        .IFreg_bus(IFreg),
+        .IF_ready_go(IF_ready_go),
+        .EX_allow_in(EX_allow_in),
+        .ID_ready_go(ID_ready_go),
+        .ID_allow_in(ID_allow_in),
         .rf_raddr1(rf_raddr1),
         .rf_raddr2(rf_raddr2),
-        .EX_bypass_bus(EX_bypass_bus),
-        .MEM_bypass_bus(MEM_bypass_bus),
-        .WB_bypass_bus(WB_bypass_bus),
+        .rf_rdata1(rf_rdata1),
+        .rf_rdata2(rf_rdata2),
+
+        .IDreg_valid(toIDreg_valid_bus),
+        .IDreg_excep(toIDreg_excep_bus),
+        .IDreg_bus(IDreg_bus),
+
         .pause(pause),
         .addr1_forward(addr1_forward),
         .addr1_occur(addr1_occur),
         .addr2_forward(addr2_forward),
-        .addr2_occur(addr2_occur)
-    );  
+        .addr2_occur(addr2_occur),
+        .BR_BUS(BR_BUS),
 
-// Pipeline states
-    // IF
-        IF  u_IF(
-            .clk(clk),
-            .reset(reset),
-            .inst_sram_we(inst_sram_we),
-            .inst_sram_en(inst_sram_en),
-            .inst_sram_addr(inst_sram_addr),
-            .inst_sram_wdata(inst_sram_wdata),
-            .inst_sram_rdata(inst_sram_rdata),
-            .IF_ready_go(IF_ready_go),
-            .ID_allow_in(ID_allow_in),
+        .wb_ex(wb_ex)
+    );
 
-            .IFreg_valid(toIFreg_valid_bus),
-            .IFreg_excep(toIFreg_excep_bus),
-            .IFreg_bus(IFreg_bus),
-            .BR_BUS(BR_BUS)
-        );
+// EX
+EX  u_EX(
+        .clk(clk),
+        .reset(reset||wb_ex||ertn_flush),
+        .valid(IDreg_valid),
+        .IDreg_bus(IDreg),
+        .ID_ready_go(ID_ready_go),
+        .MEM_allow_in(MEM_allow_in),
+        .EX_allow_in(EX_allow_in),
+        .EX_ready_go(EX_ready_go),
+        .data_sram_en(data_sram_en),
+        .data_sram_addr(data_sram_addr),
+        .data_sram_wdata(data_sram_wdata),
+        .data_sram_we(data_sram_we),
+        .EX_bypass_bus(EX_bypass_bus),
 
-    // ID
-        ID  u_ID(
-            .clk(clk),
-            .reset(reset),
-            .valid(IFreg_valid),
-            .IFreg_bus(IFreg),
-            .IF_ready_go(IF_ready_go),
-            .EX_allow_in(EX_allow_in),
-            .ID_ready_go(ID_ready_go),
-            .ID_allow_in(ID_allow_in),
-            .rf_raddr1(rf_raddr1),
-            .rf_raddr2(rf_raddr2),
-            .rf_rdata1(rf_rdata1),
-            .rf_rdata2(rf_rdata2),
+        .EXreg_valid(toEXreg_valid_bus),
+        .EXreg_excep(toEXreg_excep_bus),
+        .EXreg_bus(EXreg_bus),
 
-            .IDreg_valid(toIDreg_valid_bus),
-            .IDreg_excep(toIDreg_excep_bus),
-            .IDreg_bus(IDreg_bus),
+        .store_disable(store_disable)
+    );
 
-            .pause(pause),
-            .addr1_forward(addr1_forward),
-            .addr1_occur(addr1_occur),
-            .addr2_forward(addr2_forward),
-            .addr2_occur(addr2_occur),
-            .BR_BUS(BR_BUS)
-        );
+// MEM
+MEM u_MEM(
+        .clk(clk),
+        .reset(reset||wb_ex||ertn_flush),
+        .valid(EXreg_valid),
+        /***************************************************
+            Hint:
+            Exreg_bus[139:108] is the result of multiplier.
+            directly from EX stage.
+            Kinda like mul for 2 clks.
+        ****************************************************/
+        .EXreg_bus({EXreg[`EXReg_BUS_LEN-1],EXreg_bus[`EXReg_BUS_LEN-2:`EXReg_BUS_LEN-33],EXreg[`EXReg_BUS_LEN-34:0]}),
+        .data_sram_rdata(data_sram_rdata),
+        .EX_ready_go(EX_ready_go),
+        .WB_allow_in(WB_allow_in),
+        .MEM_allow_in(MEM_allow_in),
+        .MEM_ready_go(MEM_ready_go),
+        .MEM_bypass_bus(MEM_bypass_bus),
+        .MEMreg_valid(toMEMreg_valid_bus),
+        .MEMreg_excep(toMEMreg_excep_bus),
+        .MEMreg_bus(MEMreg_bus)
+    );
 
-    // EX
-        EX  u_EX(
-            .clk(clk),
-            .reset(reset),
-            .valid(IDreg_valid),
-            .IDreg_bus(IDreg),
-            .ID_ready_go(ID_ready_go),
-            .MEM_allow_in(MEM_allow_in),
-            .EX_allow_in(EX_allow_in),
-            .EX_ready_go(EX_ready_go),
-            .data_sram_en(data_sram_en),
-            .data_sram_addr(data_sram_addr),
-            .data_sram_wdata(data_sram_wdata),
-            .data_sram_we(data_sram_we),
-            .EX_bypass_bus(EX_bypass_bus),
-
-            .EXreg_valid(toEXreg_valid_bus),
-            .EXreg_excep(toEXreg_excep_bus),
-            .EXreg_bus(EXreg_bus)
-        );
-
-    // MEM
-        MEM u_MEM(
-            .clk(clk),
-            .reset(reset),
-            .valid(EXreg_valid),
-            /***************************************************
-                Hint:
-                Exreg_bus[139:108] is the result of multiplier.
-                directly from EX stage.
-                Kinda like mul for 2 clks.
-            ****************************************************/
-            .EXreg_bus({EXreg[140],EXreg_bus[139:108],EXreg[107:0]}),
-            .data_sram_rdata(data_sram_rdata),
-            .EX_ready_go(EX_ready_go),
-            .WB_allow_in(WB_allow_in),
-            .MEM_allow_in(MEM_allow_in),
-            .MEM_ready_go(MEM_ready_go),
-            .MEM_bypass_bus(MEM_bypass_bus),
-            .MEMreg_valid(toMEMreg_valid_bus),
-            .MEMreg_excep(toMEMreg_excep_bus),
-            .MEMreg_bus(MEMreg_bus)
-        ); 
-
-    // WB
-        WB  u_WB(
-            .clk(clk),
-            .reset(reset),
-            .valid(MEMreg_valid),
-            .MEMreg_bus(MEMreg),
-            .rf_wdata(rf_wdata),
-            .rf_waddr(rf_waddr),
-            .rf_we(rf_we),
-            .WB_bypass_bus(WB_bypass_bus),
-            .debug_wb_pc(debug_wb_pc),
-            .debug_wb_rf_we(debug_wb_rf_we),
-            .debug_wb_rf_wnum(debug_wb_rf_wnum),
-            .debug_wb_rf_wdata(debug_wb_rf_wdata),
-            .MEM_ready_go(MEM_ready_go),
-            .WB_ready_go(WB_ready_go),
-            .WB_allow_in(WB_allow_in)
-        );
+// WB
+WB  u_WB(
+        .clk(clk),
+        .reset(reset||wb_ex||ertn_flush),
+        .valid(MEMreg_valid),
+        .MEMreg_bus(MEMreg),
+        .rf_wdata(rf_wdata),
+        .rf_waddr(rf_waddr),
+        .rf_we(rf_we),
+        .WB_bypass_bus(WB_bypass_bus),
+        .debug_wb_pc(debug_wb_pc),
+        .debug_wb_rf_we(debug_wb_rf_we),
+        .debug_wb_rf_wnum(debug_wb_rf_wnum),
+        .debug_wb_rf_wdata(debug_wb_rf_wdata),
+        .MEM_ready_go(MEM_ready_go),
+        .WB_ready_go(WB_ready_go),
+        .WB_allow_in(WB_allow_in),
+        .csr_ctrl(csr_ctrl),
+        .csr_rvalue(csr_rvalue),
+        .wb_ex(wb_ex),
+        .wb_pc(wb_pc),
+        .wb_ecode(wb_ecode),
+        .wb_esubcode(wb_esubcode),
+        .ertn_flush(ertn_flush)
+    );
 
 // Pipeline update
-    // IFreg
-        always @(posedge clk) begin
-            if (reset) begin
-                IFreg_valid     <= 0;
-                IFreg_excep     <= 0;
-                IFreg           <= 0;
-            end
-            else begin
-                if (IF_ready_go & ID_allow_in) begin
-                    IFreg_valid     <= toIFreg_valid_bus;
-                    IFreg_excep     <= toIFreg_excep_bus;
-                    IFreg           <= IFreg_bus;
-                end
-                else begin
-                    if (~IF_ready_go & ID_allow_in) begin
-                        IFreg_valid <= 0;
-                    end
-                end
+// IFreg
+always @(posedge clk)
+begin
+    if (reset||wb_ex||ertn_flush)
+    begin
+        IFreg_valid     <= 0;
+        IFreg_excep     <= 0;
+        IFreg           <= 0;
+    end
+    else
+    begin
+        if (IF_ready_go & ID_allow_in)
+        begin
+            IFreg_valid     <= toIFreg_valid_bus;
+            IFreg_excep     <= toIFreg_excep_bus;
+            IFreg           <= IFreg_bus;
+        end
+        else
+        begin
+            if (~IF_ready_go & ID_allow_in)
+            begin
+                IFreg_valid <= 0;
             end
         end
+    end
+end
 
-    // IDreg
-        always @(posedge clk) begin
-            if (reset) begin
-                IDreg_valid     <= 0;
-                IDreg_excep     <= 0;
-                IDreg           <= 0;
-            end
-            else begin
-                if (ID_ready_go & EX_allow_in) begin
-                    IDreg_valid     <= toIDreg_valid_bus;
-                    IDreg_excep     <= toIDreg_excep_bus;
-                    IDreg           <= IDreg_bus;
-                end
-                else begin
-                    if (~ID_ready_go & EX_allow_in) begin
-                        IDreg_valid <= 0;
-                    end
-                end
+// IDreg
+always @(posedge clk)
+begin
+    if (reset||wb_ex||ertn_flush)
+    begin
+        IDreg_valid     <= 0;
+        IDreg_excep     <= 0;
+        IDreg           <= 0;
+    end
+    else
+    begin
+        if (ID_ready_go & EX_allow_in)
+        begin
+            IDreg_valid     <= toIDreg_valid_bus;
+            IDreg_excep     <= toIDreg_excep_bus;
+            IDreg           <= IDreg_bus;
+        end
+        else
+        begin
+            if (~ID_ready_go & EX_allow_in)
+            begin
+                IDreg_valid <= 0;
             end
         end
+    end
+end
 
-    // EXreg
-        always @(posedge clk) begin
-            if (reset) begin
-                EXreg_valid     <= 0;
-                EXreg_excep     <= 0;
-                EXreg           <= 0;
-            end
-            else begin
-                if (EX_ready_go & MEM_allow_in) begin
-                    EXreg_valid     <= toEXreg_valid_bus;
-                    EXreg_excep     <= toEXreg_excep_bus;
-                    EXreg           <= EXreg_bus;
-                end
-                else begin
-                    if (~EX_ready_go & MEM_allow_in) begin
-                        EXreg_valid <= 0;
-                    end
-                end
+// EXreg
+always @(posedge clk)
+begin
+    if (reset||wb_ex||ertn_flush)
+    begin
+        EXreg_valid     <= 0;
+        EXreg_excep     <= 0;
+        EXreg           <= 0;
+    end
+    else
+    begin
+        if (EX_ready_go & MEM_allow_in)
+        begin
+            EXreg_valid     <= toEXreg_valid_bus;
+            EXreg_excep     <= toEXreg_excep_bus;
+            EXreg           <= EXreg_bus;
+        end
+        else
+        begin
+            if (~EX_ready_go & MEM_allow_in)
+            begin
+                EXreg_valid <= 0;
             end
         end
+    end
+end
 
-    // MEMreg
-        always @(posedge clk) begin
-            if (reset) begin
+// MEMreg
+always @(posedge clk)
+begin
+    if (reset||wb_ex||ertn_flush)
+    begin
+        MEMreg_valid    <= 0;
+        MEMreg_excep    <= 0;
+        MEMreg          <= 0;
+    end
+    else
+    begin
+        if (MEM_ready_go & WB_allow_in)
+        begin
+            MEMreg_valid    <= toMEMreg_valid_bus;
+            MEMreg_excep    <= toMEMreg_excep_bus;
+            MEMreg          <= MEMreg_bus;
+        end
+        else
+        begin
+            if (~MEM_ready_go & WB_allow_in)
+            begin
                 MEMreg_valid    <= 0;
-                MEMreg_excep    <= 0;
-                MEMreg          <= 0;
-            end
-            else begin
-                if (MEM_ready_go & WB_allow_in) begin
-                    MEMreg_valid    <= toMEMreg_valid_bus;
-                    MEMreg_excep    <= toMEMreg_excep_bus;
-                    MEMreg          <= MEMreg_bus;
-                end
-                else begin
-                    if (~MEM_ready_go & WB_allow_in) begin
-                        MEMreg_valid    <= 0;
-                    end
-                end
             end
         end
+    end
+end
 
 endmodule

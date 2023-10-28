@@ -1,9 +1,9 @@
 module alu(
-  input  wire [11:0] alu_op,
-  input  wire [31:0] alu_src1,
-  input  wire [31:0] alu_src2,
-  output wire [31:0] alu_result
-);
+           input  wire [11:0] alu_op,
+           input  wire [31:0] alu_src1,
+           input  wire [31:0] alu_src2,
+           output wire [31:0] alu_result
+       );
 
 wire op_add;   //add operation
 wire op_sub;   //sub operation
@@ -63,7 +63,7 @@ assign add_sub_result = adder_result;
 // SLT result
 assign slt_result[31:1] = 31'b0;   //rj < rk 1
 assign slt_result[0]    = (alu_src1[31] & ~alu_src2[31])
-                        | ((alu_src1[31] ~^ alu_src2[31]) & adder_result[31]);
+       | ((alu_src1[31] ~^ alu_src2[31]) & adder_result[31]);
 
 // SLTU result
 assign sltu_result[31:1] = 31'b0;
@@ -86,14 +86,14 @@ assign sr_result   = sr64_result[31:0];
 
 // final result mux
 assign alu_result = ({32{op_add|op_sub}} & add_sub_result)
-                  | ({32{op_slt       }} & slt_result)
-                  | ({32{op_sltu      }} & sltu_result)
-                  | ({32{op_and       }} & and_result)
-                  | ({32{op_nor       }} & nor_result)
-                  | ({32{op_or        }} & or_result)
-                  | ({32{op_xor       }} & xor_result)
-                  | ({32{op_lui       }} & lui_result)
-                  | ({32{op_sll       }} & sll_result)
-                  | ({32{op_srl|op_sra}} & sr_result);
+       | ({32{op_slt       }} & slt_result)
+       | ({32{op_sltu      }} & sltu_result)
+       | ({32{op_and       }} & and_result)
+       | ({32{op_nor       }} & nor_result)
+       | ({32{op_or        }} & or_result)
+       | ({32{op_xor       }} & xor_result)
+       | ({32{op_lui       }} & lui_result)
+       | ({32{op_sll       }} & sll_result)
+       | ({32{op_srl|op_sra}} & sr_result);
 
 endmodule

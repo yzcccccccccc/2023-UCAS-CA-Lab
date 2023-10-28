@@ -3,22 +3,22 @@
         Using Xilinx ip
         Created By Yzcc
         2023.10.2
-
+ 
     Version 0.2:
         RTL ver multiplier
         Created By Czxx
         2023.10.16
-
+ 
 *******************************************************************/
 
 `timescale 1ns / 1ps
 
 module booth(
-    input [2:0] y_near,
-    input [33:0] x_complement,
-    output [33:0] partial_product,
-    output carry
-    );
+           input [2:0] y_near,
+           input [33:0] x_complement,
+           output [33:0] partial_product,
+           output carry
+       );
 
 wire S_posX = ~y_near[2]&&~y_near[1]&&y_near[0] || ~y_near[2]&&y_near[1]&&~y_near[0];
 wire S_pos2X = ~y_near[2]&&y_near[1]&&y_near[0];
@@ -30,19 +30,19 @@ assign carry = S_negX||S_neg2X;
 wire [33:0] x_complement_reverse = ~x_complement;
 
 assign partial_product = {34{S_posX}}&x_complement
-                        |{34{S_pos2X}}&{x_complement[32:0],1'b0}
-                        |{34{S_negX}}&x_complement_reverse
-                        |{34{S_neg2X}}&{x_complement_reverse[32:0],1'b1};
+       |{34{S_pos2X}}&{x_complement[32:0],1'b0}
+       |{34{S_negX}}&x_complement_reverse
+       |{34{S_neg2X}}&{x_complement_reverse[32:0],1'b1};
 
 endmodule
 
-module wallace(
-    input clk,
-    input [16:0] N_array,
-    input [14:0] Cin_array,
-    output S,
-    output C,
-    output [14:0] Cout_array
+    module wallace(
+        input clk,
+        input [16:0] N_array,
+        input [14:0] Cin_array,
+        output S,
+        output C,
+        output [14:0] Cout_array
     );
 
 wire [16:0] N_array_f1;
@@ -53,7 +53,8 @@ wire [3:0] N_array_f5;
 wire [2:0] N_array_f6;
 
 reg [5:0] N_array_f4_reg;
-always @(posedge clk) begin
+always @(posedge clk)
+begin
     N_array_f4_reg <= N_array_f4;
 end
 
@@ -91,11 +92,11 @@ assign {C,S} = N_array_f6[0]+N_array_f6[1]+N_array_f6[2];
 
 endmodule
 
-module multiplier_signed_34bits(
-    input clk,
-    input [33:0] x_complement,
-    input [33:0] y_complement,
-    output [67:0] mul_result
+    module multiplier_signed_34bits(
+        input clk,
+        input [33:0] x_complement,
+        input [33:0] y_complement,
+        output [67:0] mul_result
     );
 
 wire [67:0] partial_products[16:0];
@@ -107,19 +108,21 @@ wire [67:0] Add_src1;
 wire [68:0] Add_src2;
 reg [16:0] carries_reg;
 
-always @(posedge clk) begin
+always @(posedge clk)
+begin
     carries_reg <= carries;
 end
 
 generate
-    for(genvar i=0; i<17; i=i+1) begin : booth_gen
+    for(genvar i=0; i<17; i=i+1)
+    begin : booth_gen
         wire [33:0] partial_product;
         booth booth(
-            .y_near(y_complement_extended[2*i+2:2*i]),
-            .x_complement(x_complement),
-            .partial_product(partial_product),
-            .carry(carries[i])
-        );
+                  .y_near(y_complement_extended[2*i+2:2*i]),
+                  .x_complement(x_complement),
+                  .partial_product(partial_product),
+                  .carry(carries[i])
+              );
         assign partial_products[i] = {{(34-2*i){partial_product[33]}},partial_product,{(2*i){carries[i]}}};
     end
 endgenerate
@@ -143,7 +146,8 @@ wire [67:0] partial_products_15 = partial_products[15];
 wire [67:0] partial_products_16 = partial_products[16];
 
 generate
-    for (genvar j=0; j<68; j=j+1) begin : partial_products_t_init
+    for (genvar j=0; j<68; j=j+1)
+    begin : partial_products_t_init
         assign partial_products_t[j] = {partial_products_0[j],
                                         partial_products_1[j],
                                         partial_products_2[j],
@@ -161,22 +165,23 @@ generate
                                         partial_products_14[j],
                                         partial_products_15[j],
                                         partial_products_16[j]
-                                        };
+                                       };
     end
 endgenerate
 
 assign Cin_arrays[0] = {carries[14],carries_reg[13:11],carries[10:0]};
 
 generate
-    for (genvar k=0; k<68; k=k+1) begin : wallace_gen
+    for (genvar k=0; k<68; k=k+1)
+    begin : wallace_gen
         wallace wallace(
-            .clk(clk),
-            .N_array(partial_products_t[k]),
-            .Cin_array(Cin_arrays[k]),
-            .S(Add_src1[k]),
-            .C(Add_src2[k+1]),
-            .Cout_array(Cin_arrays[k+1])
-        );
+                    .clk(clk),
+                    .N_array(partial_products_t[k]),
+                    .Cin_array(Cin_arrays[k]),
+                    .S(Add_src1[k]),
+                    .C(Add_src2[k+1]),
+                    .Cout_array(Cin_arrays[k+1])
+                );
     end
 endgenerate
 
@@ -186,20 +191,21 @@ assign mul_result = Add_src1+Add_src2[67:0]+carries_reg[16];
 endmodule
 
 
-module multiplier(
-    input   wire            clk,
-    input   wire [31:0]     mul_src1,
-    input   wire [31:0]     mul_src2,
-    input   wire [2:0]      mul_op,         // 001 for mul.w, 010 for mulh.w, 100 for mulh.wu
-    output  wire [31:0]     mul_res
-);
+    module multiplier(
+        input   wire            clk,
+        input   wire [31:0]     mul_src1,
+        input   wire [31:0]     mul_src2,
+        input   wire [2:0]      mul_op,         // 001 for mul.w, 010 for mulh.w, 100 for mulh.wu
+        output  wire [31:0]     mul_res
+    );
 
 wire is_unsigned;
 wire [33:0] mul_src1_ext,mul_src2_ext;
 wire [67:0] prod;
 reg [2:0] mul_op_reg;
 
-always @(posedge clk) begin
+always @(posedge clk)
+begin
     mul_op_reg <= mul_op;
 end
 
@@ -210,13 +216,13 @@ assign mul_src2_ext = {{2{is_unsigned?1'b0:mul_src2[31]}},mul_src2};
 
 
 multiplier_signed_34bits u_multiplier_signed_34bits(
-    .clk(clk),
-    .x_complement(mul_src1_ext),
-    .y_complement(mul_src2_ext),
-    .mul_result(prod)
-);
+                             .clk(clk),
+                             .x_complement(mul_src1_ext),
+                             .y_complement(mul_src2_ext),
+                             .mul_result(prod)
+                         );
 
 assign mul_res = {32{mul_op_reg[0]}} & prod[31:0]
-                | {32{mul_op_reg[1]||mul_op_reg[2]}} & prod[63:32];
+       | {32{mul_op_reg[1]||mul_op_reg[2]}} & prod[63:32];
 
 endmodule
