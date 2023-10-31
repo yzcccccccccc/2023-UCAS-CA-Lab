@@ -36,19 +36,15 @@ end
 wire    [`BR_BUS_LEN - 1:0]         BR_BUS;
 
 wire                                toIFreg_valid_bus;
-wire                                toIFreg_excep_bus;
 wire    [`IFReg_BUS_LEN - 1:0]      IFreg_bus;
 
 wire                                toIDreg_valid_bus;
-wire                                toIDreg_excep_bus;      // exp12
 wire    [`IDReg_BUS_LEN - 1:0]      IDreg_bus;
 
 wire                                toEXreg_valid_bus;
-wire                                toEXreg_excep_bus;      // exp12
 wire    [`EXReg_BUS_LEN - 1:0]      EXreg_bus;
 
 wire                                toMEMreg_valid_bus;
-wire                                toMEMreg_excep_bus;     // exp12
 wire    [`MEMReg_BUS_LEN - 1:0]     MEMreg_bus;
 
 wire    [`EX_BYPASS_LEN - 1:0]      EX_bypass_bus;
@@ -65,22 +61,18 @@ wire    IF_ready_go, ID_allow_in, ID_ready_go,
 // Regs
 // IFreg
 reg                             IFreg_valid;
-reg                             IFreg_excep;        // exp12
 reg     [`IFReg_BUS_LEN - 1:0]  IFreg;
 
 // IDreg
 reg                             IDreg_valid;
-reg                             IDreg_excep;        // exp12
 reg     [`IDReg_BUS_LEN - 1:0]  IDreg;
 
 // EXreg
 reg                             EXreg_valid;
-reg                             EXreg_excep;        // exp12
 reg     [`EXReg_BUS_LEN - 1:0]  EXreg;
 
 // MEMreg
 reg                             MEMreg_valid;
-reg                             MEMreg_excep;       // exp12
 reg     [`MEMReg_BUS_LEN - 1:0] MEMreg;
 
 // RegFile
@@ -99,16 +91,11 @@ regfile u_regfile(
         );
 
 // CSR
-wire    [79:0]      csr_ctrl;
-wire    [31:0]      csr_rvalue;
+wire [79:0] csr_ctrl;
+wire [31:0] csr_rvalue;
 wire [31:0] ex_entry;
 wire [31:0] era_pc;
 wire has_int;
-wire ertn_flush;
-wire wb_ex;
-wire [31:0] wb_pc;
-wire [5:0] wb_ecode;
-wire [8:0] wb_esubcode;
 
 csr u_csr(
         .clk(clk),
@@ -119,14 +106,10 @@ csr u_csr(
         .csr_rvalue(csr_rvalue),
 
         // circuit interface
+        .CSR_in_bus(CSR_in_bus),
         .ex_entry(ex_entry),
         .era_pc(era_pc),
-        .has_int(has_int),
-        .ertn_flush(ertn_flush),
-        .wb_ex(wb_ex),
-        .wb_pc(wb_pc),
-        .wb_ecode(wb_ecode),
-        .wb_esubcode(wb_esubcode)
+        .has_int(has_int)
     );
 
 // Data Harzard Detect
@@ -146,10 +129,19 @@ data_harzard_detector u_dhd(
                           .addr2_occur(addr2_occur)
                       );
 
-// Store disable
-wire store_disable = EXreg_bus[121] | MEMreg_bus[152] | wb_ex;
+// store when exception occur in EX/MEM/WB
+wire ex_ex = | EXreg_bus[238:223];
+wire mem_ex = | MEMreg_bus[167:152];
+wire st_disable = ex_ex | mem_ex | wb_ex;
 
 // Pipeline states
+
+/***************************************************
+    Hint:
+    clean pipeline when wb_ex or ertn_reflush:
+    reset stages besides IF stage.
+****************************************************/
+
 // IF
 IF  u_IF(
         .clk(clk),
@@ -162,13 +154,13 @@ IF  u_IF(
         .IF_ready_go(IF_ready_go),
         .ID_allow_in(ID_allow_in),
 
-        .wb_ex(wb_ex),
-        .ex_entry(ex_entry),
         .IFreg_valid(toIFreg_valid_bus),
-        .IFreg_excep(toIFreg_excep_bus),
         .IFreg_bus(IFreg_bus),
         .BR_BUS(BR_BUS),
 
+        .except_valid(MEMreg_valid),
+        .wb_ex(wb_ex),
+        .ex_entry(ex_entry),
         .ertn_flush(ertn_flush),
         .era_pc(era_pc)
     );
@@ -189,7 +181,6 @@ ID  u_ID(
         .rf_rdata2(rf_rdata2),
 
         .IDreg_valid(toIDreg_valid_bus),
-        .IDreg_excep(toIDreg_excep_bus),
         .IDreg_bus(IDreg_bus),
 
         .pause(pause),
@@ -197,9 +188,7 @@ ID  u_ID(
         .addr1_occur(addr1_occur),
         .addr2_forward(addr2_forward),
         .addr2_occur(addr2_occur),
-        .BR_BUS(BR_BUS),
-
-        .wb_ex(wb_ex)
+        .BR_BUS(BR_BUS)
     );
 
 // EX
@@ -219,10 +208,9 @@ EX  u_EX(
         .EX_bypass_bus(EX_bypass_bus),
 
         .EXreg_valid(toEXreg_valid_bus),
-        .EXreg_excep(toEXreg_excep_bus),
         .EXreg_bus(EXreg_bus),
 
-        .store_disable(store_disable)
+        .st_disable(st_disable)
     );
 
 // MEM
@@ -232,11 +220,12 @@ MEM u_MEM(
         .valid(EXreg_valid),
         /***************************************************
             Hint:
-            Exreg_bus[139:108] is the result of multiplier.
+            EXreg_bus[`EXReg_BUS_LEN-18:`EXReg_BUS_LEN-49] is
+            the result of multiplier.
             directly from EX stage.
             Kinda like mul for 2 clks.
         ****************************************************/
-        .EXreg_bus({EXreg[`EXReg_BUS_LEN-1],EXreg_bus[`EXReg_BUS_LEN-2:`EXReg_BUS_LEN-33],EXreg[`EXReg_BUS_LEN-34:0]}),
+        .EXreg_bus({EXreg[`EXReg_BUS_LEN-1:`EXReg_BUS_LEN-17],EXreg_bus[`EXReg_BUS_LEN-18:`EXReg_BUS_LEN-49],EXreg[`EXReg_BUS_LEN-50:0]}),
         .data_sram_rdata(data_sram_rdata),
         .EX_ready_go(EX_ready_go),
         .WB_allow_in(WB_allow_in),
@@ -244,7 +233,6 @@ MEM u_MEM(
         .MEM_ready_go(MEM_ready_go),
         .MEM_bypass_bus(MEM_bypass_bus),
         .MEMreg_valid(toMEMreg_valid_bus),
-        .MEMreg_excep(toMEMreg_excep_bus),
         .MEMreg_bus(MEMreg_bus)
     );
 
@@ -267,12 +255,10 @@ WB  u_WB(
         .WB_allow_in(WB_allow_in),
         .csr_ctrl(csr_ctrl),
         .csr_rvalue(csr_rvalue),
-        .wb_ex(wb_ex),
-        .wb_pc(wb_pc),
-        .wb_ecode(wb_ecode),
-        .wb_esubcode(wb_esubcode),
-        .ertn_flush(ertn_flush)
+        .to_csr_in_bus(CSR_in_bus)
     );
+assign wb_ex = CSR_in_bus[47];
+assign ertn_flush = CSR_in_bus[48];
 
 // Pipeline update
 // IFreg
@@ -281,7 +267,6 @@ begin
     if (reset||wb_ex||ertn_flush)
     begin
         IFreg_valid     <= 0;
-        IFreg_excep     <= 0;
         IFreg           <= 0;
     end
     else
@@ -289,7 +274,6 @@ begin
         if (IF_ready_go & ID_allow_in)
         begin
             IFreg_valid     <= toIFreg_valid_bus;
-            IFreg_excep     <= toIFreg_excep_bus;
             IFreg           <= IFreg_bus;
         end
         else
@@ -308,7 +292,6 @@ begin
     if (reset||wb_ex||ertn_flush)
     begin
         IDreg_valid     <= 0;
-        IDreg_excep     <= 0;
         IDreg           <= 0;
     end
     else
@@ -316,7 +299,6 @@ begin
         if (ID_ready_go & EX_allow_in)
         begin
             IDreg_valid     <= toIDreg_valid_bus;
-            IDreg_excep     <= toIDreg_excep_bus;
             IDreg           <= IDreg_bus;
         end
         else
@@ -335,7 +317,6 @@ begin
     if (reset||wb_ex||ertn_flush)
     begin
         EXreg_valid     <= 0;
-        EXreg_excep     <= 0;
         EXreg           <= 0;
     end
     else
@@ -343,7 +324,6 @@ begin
         if (EX_ready_go & MEM_allow_in)
         begin
             EXreg_valid     <= toEXreg_valid_bus;
-            EXreg_excep     <= toEXreg_excep_bus;
             EXreg           <= EXreg_bus;
         end
         else
@@ -362,7 +342,6 @@ begin
     if (reset||wb_ex||ertn_flush)
     begin
         MEMreg_valid    <= 0;
-        MEMreg_excep    <= 0;
         MEMreg          <= 0;
     end
     else
@@ -370,7 +349,6 @@ begin
         if (MEM_ready_go & WB_allow_in)
         begin
             MEMreg_valid    <= toMEMreg_valid_bus;
-            MEMreg_excep    <= toMEMreg_excep_bus;
             MEMreg          <= MEMreg_bus;
         end
         else

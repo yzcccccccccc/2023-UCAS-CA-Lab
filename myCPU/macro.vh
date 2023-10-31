@@ -1,19 +1,17 @@
 `define BR_BUS_LEN      33
 
-`define IF2ID_pc        32
-`define IF2ID_inst      32
-`define IFReg_BUS_LEN   64
+`define IFReg_BUS_LEN   80      /* IF2ID    = {ebus_end, inst, pc} */
 
-`define ID2EX_LEN       78      /* ID2EX    = {alu_op, alu_src1, alu_src2, mul, div} */
+`define ID2EX_LEN       94      /* ID2EX    = {ebus_end, alu_op, alu_src1, alu_src2, mul, div} */
 `define ID2MEM_LEN      41      /* ID2MEM   = {rkd_value, mem_en, st_ctrl, ld_ctrl} */
-`define ID2WB_LEN       122     /* ID2WB    = {has_sys, ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc} */
-`define IDReg_BUS_LEN   241     /* = {ID2EX, ID2MEM, ID2WB} */
+`define ID2WB_LEN       121     /* ID2WB    = {ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc} */
+`define IDReg_BUS_LEN   256     /* = {ID2EX, ID2MEM, ID2WB} */
 
-`define EX2MEM_LEN      102     /* EX2MEM   = {mul, mul_result, EX_result, rdk_value, ld_ctrl}*/
-`define EX2WB_LEN       122
-`define EXReg_BUS_LEN   224
+`define EX2MEM_LEN      118     /* EX2MEM   = {ebus_end, mul, mul_result, EX_result, rdk_value, ld_ctrl}*/
+`define EX2WB_LEN       121
+`define EXReg_BUS_LEN   239     /* = {EXreg_2MEM, EXreg_2WB}; */
 
-`define MEMReg_BUS_LEN  153
+`define MEMReg_BUS_LEN  168     /* MEM2WB  = {ebus_end, ertn_flush, csr_ctrl, res_from_csr, MEM_final_result, rf_we, rf_waddr, pc}*/
 
 // Data Forward Bypass
 `define EX_BYPASS_LEN   41
@@ -93,3 +91,21 @@
 `define ECODE_TLBR        6'h3f
 `define ESUBCODE_ADEF     9'h00
 `define ESUBCODE_ADEM     9'h01
+
+// Exception Number in ebus
+`define EBUS_INT          4'd0
+`define EBUS_PIL          4'd1
+`define EBUS_PIS          4'd2
+`define EBUS_PIF          4'd3
+`define EBUS_PME          4'd4
+`define EBUS_PPI          4'd5
+`define EBUS_ADEF         4'd6
+`define EBUS_ADEM         4'd7
+`define EBUS_ALE          4'd8
+`define EBUS_SYS          4'd9
+`define EBUS_BRK          4'd10
+`define EBUS_INE          4'd11
+`define EBUS_IPE          4'd12
+`define EBUS_FPD          4'd13
+`define EBUS_FPE          4'd14
+`define EBUS_TLBR         4'd15

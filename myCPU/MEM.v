@@ -21,9 +21,13 @@ module MEM(
 
            // MEMReg bus
            output  wire                            MEMreg_valid,
-           output  wire                            MEMreg_excep,
            output  wire [`MEMReg_BUS_LEN - 1:0]    MEMreg_bus
        );
+
+// ebus
+wire [15:0] ebus_init;
+wire [15:0] ebus_end;
+
 // EXreg_bus Decode
 wire    [`EX2MEM_LEN - 1:0]     EX2MEM_bus;
 wire    [`EX2WB_LEN - 1:0]      EX2WB_bus;
@@ -32,17 +36,16 @@ assign  {EX2MEM_bus, EX2WB_bus} = EXreg_bus;
 wire    [31:0]  mul_result, EX_result, rkd_value;
 wire    [4:0]   ld_ctrl;            // = {inst_ld_w, inst_ld_b, inst_ld_bu, inst_ld_h, inst_ld_hu}
 wire            mul;
-assign  {mul, mul_result, EX_result, rkd_value, ld_ctrl} = EX2MEM_bus;
+assign  {ebus_init, mul, mul_result, EX_result, rkd_value, ld_ctrl} = EX2MEM_bus;
 
-wire has_sys;
-wire ertn_flush;
+wire            ertn_flush;
 wire [79:0]     csr_ctrl;
-wire res_from_csr;
+wire            res_from_csr;
 wire            rf_we;
 wire            res_from_mem;
 wire    [4:0]   rf_waddr;
 wire    [31:0]  pc;
-assign  {has_sys, ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc} = EX2WB_bus;
+assign  {ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc} = EX2WB_bus;
 
 // Define Signals
 wire [31:0]     data;
@@ -69,15 +72,18 @@ assign MEM_final_result     = mul ? mul_result :
        res_from_mem ? MEM_result :
        EX_result;
 
+// exception
+assign ebus_end = ebus_init;
+
 // control signals
 assign MEM_allow_in         = WB_allow_in & MEM_ready_go;
 assign MEM_ready_go         = 1;
 
 // data harzard bypass
-assign MEM_bypass_bus   = {res_from_csr, rf_waddr, rf_we & valid, MEM_final_result};
+assign MEM_bypass_bus       = {res_from_csr, rf_waddr, rf_we & valid, MEM_final_result};
 
 // MEMreg_bus
 assign MEMreg_valid         = valid;
-assign MEMreg_bus           = {has_sys, ertn_flush, csr_ctrl, res_from_csr, MEM_final_result, rf_we, rf_waddr, pc};
+assign MEMreg_bus           = {ebus_end, ertn_flush, csr_ctrl, res_from_csr, MEM_final_result, rf_we, rf_waddr, pc};
 
 endmodule

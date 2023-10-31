@@ -46,7 +46,10 @@ assign addr1_forward = (rf_raddr1 == EX_rf_waddr && EX_rf_we == 1'b1) ? EX_resul
 assign addr2_forward = (rf_raddr2 == EX_rf_waddr && EX_rf_we == 1'b1) ? EX_result
        : ((rf_raddr2 == MEM_rf_waddr && MEM_rf_we == 1'b1) ? MEM_final_result : WB_result);
 
-// pause(block) while EX is a load-type inst and harzard happen.
+// pause(block) while harzard happen
+//                 and EX is a load-type or csr-type inst,
+//                 or MEM is a csr-type inst,
+//                 or WB is a csr-type inst.
 assign pause        = (|rf_raddr1) & EX_rf_we & (EX_mul | EX_res_from_mem | EX_res_from_csr) & (rf_raddr1 == EX_rf_waddr)
        | (|rf_raddr1) & MEM_rf_we & (MEM_res_from_csr) & (rf_raddr1 == MEM_rf_waddr)
        | (|rf_raddr1) & WB_rf_we & (WB_res_from_csr) & (rf_raddr1 == WB_rf_waddr)

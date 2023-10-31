@@ -29,20 +29,31 @@ module ID(
 
            // IDreg bus
            output  wire                        IDreg_valid,
-           output  wire                        IDreg_excep,
            output  wire [`IDReg_BUS_LEN - 1:0] IDreg_bus,
 
            // BR bus
-           output  wire [`BR_BUS_LEN - 1:0] BR_BUS,
-
-           input wire wb_ex
+           output  wire [`BR_BUS_LEN - 1:0] BR_BUS
        );
+
+// ebus
+wire [15:0] ebus_init;
+wire [15:0] ebus_end;
+wire        has_sys;
 
 // IFreg_bus Decode
 wire    [31:0]  inst, pc;
-assign  {inst, pc}  = IFreg_bus;
+assign  {ebus_init, inst, pc}  = IFreg_bus;
 
-// Define Signals
+// CSR
+wire        res_from_csr;
+wire        csr_re, csr_we;
+wire [13:0] csr_num;
+wire [31:0] csr_wvalue, csr_wmask;
+wire [79:0] csr_ctrl;
+
+// ertn
+wire        ertn_flush;
+
 wire        br_taken;
 wire        br_cancel;
 wire [31:0] br_target;
@@ -71,14 +82,6 @@ wire        unsigned_rj_lt_rd;
 
 wire        rf_we;
 wire [4:0]  rf_waddr;
-
-// CSR (exp12)
-wire res_from_csr;
-wire        csr_re, csr_we;
-wire [13:0] csr_num;
-wire [31:0] csr_wvalue, csr_wmask;
-wire [79:0] csr_ctrl;
-wire ertn_flush;
 
 wire [ 5:0] op_31_26;
 wire [ 3:0] op_25_22;
@@ -367,9 +370,12 @@ assign csr_re       = inst_csrrd | inst_csrxchg | inst_csrwr;
 assign csr_we       = inst_csrwr | inst_csrxchg;
 assign csr_wvalue   = rkd_value;
 assign csr_wmask    = inst_csrxchg ? rj_value : {32{1'b1}};
-assign csr_ctrl = {csr_num,csr_re,csr_we,csr_wvalue,csr_wmask};
+assign csr_ctrl = {csr_num, csr_re, csr_we, csr_wvalue, csr_wmask};
 assign res_from_csr = inst_csrrd | inst_csrxchg | inst_csrwr;
+
+// exception
 assign has_sys = inst_syscall;
+assign ebus_end = ebus_init | {{15-`EBUS_SYS{1'b0}}, has_sys, {`EBUS_SYS{1'b0}}};
 assign ertn_flush = inst_ertn;
 
 // IDreg_bus
@@ -377,10 +383,10 @@ wire    [`ID2EX_LEN - 1:0]  IDreg_2EX;
 wire    [`ID2MEM_LEN - 1:0] IDreg_2MEM;
 wire    [`ID2WB_LEN - 1:0]  IDreg_2WB;
 
-assign IDreg_valid      = valid & ~wb_ex;
-assign IDreg_2EX        = {alu_op, alu_src1, alu_src2, mul, div};
+assign IDreg_valid      = valid;
+assign IDreg_2EX        = {ebus_end, alu_op, alu_src1, alu_src2, mul, div};
 assign IDreg_2MEM       = {rkd_value, mem_en, st_ctrl, ld_ctrl};
-assign IDreg_2WB        = {has_sys, ertn_flush, csr_ctrl,res_from_csr,rf_we, res_from_mem, rf_waddr, pc};
+assign IDreg_2WB        = {ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc};
 
 assign IDreg_bus        = {IDreg_2EX, IDreg_2MEM, IDreg_2WB};
 

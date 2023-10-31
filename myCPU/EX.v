@@ -24,10 +24,9 @@ module EX(
 
            // EXreg bus
            output  wire                        EXreg_valid,
-           output  wire                        EXreg_excep,
            output  wire [`EXReg_BUS_LEN - 1:0] EXreg_bus,
 
-           input wire store_disable
+           input wire st_disable
        );
 
 /************************************************************************************
@@ -35,6 +34,10 @@ module EX(
         In EX state, we need to request data_ram for the data to be used
     in MEM state.
 *************************************************************************************/
+
+// ebus
+wire [15:0] ebus_init;
+wire [15:0] ebus_end;
 
 // IDreg_bus Decode
 wire    [`ID2EX_LEN - 1:0]  ID2EX_bus;
@@ -52,7 +55,6 @@ wire    [31:0]  rkd_value;
 wire    [2:0]   st_ctrl;            // = {inst_st_w, inst_st_h, inst_st_b}
 wire    [4:0]   ld_ctrl;
 
-wire has_sys;
 wire ertn_flush;
 wire [79:0]     csr_ctrl;
 wire res_from_csr;
@@ -61,9 +63,9 @@ wire            res_from_mem;
 wire    [4:0]   rf_waddr;
 wire    [31:0]  pc;
 
-assign  {alu_op, alu_src1, alu_src2, mul, div}      = ID2EX_bus;
+assign  {ebus_init, alu_op, alu_src1, alu_src2, mul, div}      = ID2EX_bus;
 assign  {rkd_value, mem_en, st_ctrl, ld_ctrl}       = ID2MEM_bus;
-assign  {has_sys, ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc}         = ID2WB_bus;
+assign  {ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc}         = ID2WB_bus;
 
 // Define Signals
 wire [31:0]         alu_result;
@@ -122,12 +124,15 @@ assign st_data  = {32{st_ctrl[0]}} & {4{rkd_value[7:0]}}
 assign data_sram_en     = mem_en & valid;
 assign data_sram_addr   = {alu_result[31:2], 2'b0};
 assign data_sram_wdata  = st_data;
-assign data_sram_we     = mem_we & {4{valid & ~store_disable}};
+assign data_sram_we     = mem_we & {4{valid & ~st_disable}};
+
+// exception
+assign ebus_end = ebus_init;
 
 // EXreg_bus
 assign EXreg_valid      = valid;
-assign EXreg_2MEM       = {mul, mul_result, EX_result, rkd_value, ld_ctrl};
-assign EXreg_2WB        = {has_sys, ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc};
+assign EXreg_2MEM       = {ebus_end, mul, mul_result, EX_result, rkd_value, ld_ctrl};
+assign EXreg_2WB        = {ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc};
 assign EXreg_bus        = {EXreg_2MEM, EXreg_2WB};
 
 // Data Harzard Bypass
