@@ -4,6 +4,9 @@ module ID(
            input   wire        clk,
            input   wire        reset,
 
+           // timecnt
+           input   wire [63:0] timecnt,
+
            // valid & IFreg_bus
            input   wire                        valid,
            input   wire [`IFReg_BUS_LEN - 1:0] IFreg_bus,

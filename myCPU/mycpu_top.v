@@ -31,6 +31,15 @@ begin
     reset <= ~resetn;
 end
 
+// timer (for rdcnt)
+    reg [63:0]      timecnt;
+    always @(posedge clk) begin
+        if (reset)
+            timecnt <= 0;
+        else
+            timecnt <= timecnt + 1'b1;
+    end
+
 // Bus & piepeline control signals
 // bus
 wire    [`BR_BUS_LEN - 1:0]         BR_BUS;
@@ -169,6 +178,7 @@ IF  u_IF(
 ID  u_ID(
         .clk(clk),
         .reset(reset||wb_ex||ertn_flush),
+        .timecnt(timecnt),
         .valid(IFreg_valid),
         .IFreg_bus(IFreg),
         .IF_ready_go(IF_ready_go),

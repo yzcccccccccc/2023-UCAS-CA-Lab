@@ -1,0 +1,10 @@
+############################################
+        exp13
+############################################
+[to-do]:
+    1. 增加异常：ADEF, ALE, BRK和INE
+    2. 增加rdcntvl.w, rdcntvh.w, rdcntid
+
+[info]:
+    1. rdcntv的计时器timecnt在mycpu_top中
+    2. ADEF对应的需要WB向CSR传入wb_vaddr
