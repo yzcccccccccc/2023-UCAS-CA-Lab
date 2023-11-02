@@ -8,6 +8,9 @@ module csr(
            input wire [79:0] csr_ctrl,
            output wire [31:0] csr_rvalue,
 
+           // Request inst valid
+           input wire valid,
+
            // circuit interface
            input wire [`WB2CSR_LEN-1:0] CSR_in_bus,
            output wire [31:0] ex_entry,
@@ -26,12 +29,14 @@ wire [5:0]  wb_ecode;
 wire [8:0]  wb_esubcode;
 wire [31:0] wb_pc;
 wire [31:0] wb_vaddr;
-assign {ertn_flush, wb_ex, wb_ecode, wb_esubcode, wb_pc} = CSR_in_bus;
+assign {ertn_flush, wb_ex, wb_ecode, wb_esubcode, wb_pc, wb_vaddr} = CSR_in_bus;
 
-wire        csr_re, csr_we;
+wire        csr_re_tmp, csr_we_tmp, csr_re, csr_we;
 wire [13:0] csr_num;
 wire [31:0] csr_wvalue, csr_wmask;
-assign {csr_num,csr_re,csr_we,csr_wvalue,csr_wmask} = csr_ctrl;
+assign {csr_num,csr_re_tmp,csr_we_tmp,csr_wvalue,csr_wmask} = csr_ctrl;
+assign csr_re   = csr_re_tmp & valid;
+assign csr_we   = csr_we_tmp & valid;
 
 // CSR regs
 // CRMD reg
@@ -74,6 +79,9 @@ reg [31:0]      csr_badv_vaddr;
 reg             csr_tcfg_en;
 reg             csr_tcfg_periodic;
 reg [29:0]      csr_tcfg_initval;
+
+// Count Down
+reg [31:0]      timer_cnt;
 
 // has_int
 assign has_int = ((csr_estat_is[12:0] & csr_ecfg_lie[12:0]) != 13'b0)
@@ -146,6 +154,8 @@ assign csr_crmd_datm = 2'b00;
     end
 
 // estat_is
+    assign hw_int_in    = 0;
+    assign ipi_int_in   = 0;
     always @(posedge clk)
     begin
         if (reset)
@@ -192,6 +202,7 @@ assign csr_crmd_datm = 2'b00;
 
 
 // badv_vaddr
+    wire wb_ex_addr_err;
     assign wb_ex_addr_err = wb_ecode==`ECODE_ADE || wb_ecode==`ECODE_ALE;
     always @(posedge clk)
     begin
@@ -229,13 +240,11 @@ assign csr_crmd_datm = 2'b00;
     always @(posedge clk)
     begin
         if (reset)
-            csr_tid_tid <= coreid_in;
+            csr_tid_tid <= 32'b0;
         else if (csr_we && csr_num==`CSR_TID)
             csr_tid_tid <= csr_wmask[`CSR_TID_TID]&csr_wvalue[`CSR_TID_TID]
                         | ~csr_wmask[`CSR_TID_TID]&csr_tid_tid;
     end
-
-
 
     wire [31:0] tcfg_next_value;
     wire [31:0] csr_tval;
@@ -264,8 +273,6 @@ assign csr_crmd_datm = 2'b00;
 
 
 // Count down reg
-    reg [31:0] timer_cnt;
-
     always @(posedge clk)
     begin
         if (reset)

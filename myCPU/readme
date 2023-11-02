@@ -8,3 +8,11 @@
 [info]:
     1. rdcntv的计时器timecnt在mycpu_top中
     2. ADEF对应的需要WB向CSR传入wb_vaddr
+
+2023.11.2
+[info]
+    1. ref_exp13仅供参考
+    2. exp12存在遗留问题：当mem和wb级位ertn指令时，不应当发出访存请求，
+    尤其是读请求
+    3. 中断（has_int）到来时会标记在ID级。但是！请务必注意要标记在valid有效的指令上！
+    4. 请在最外层的readme.md中简要介绍关键设计，这将大大减小后续实验熟悉代码的难度 :)
