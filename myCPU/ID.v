@@ -30,6 +30,9 @@ module ID(
            input   wire [31:0] addr1_forward,
            input   wire [31:0] addr2_forward,
 
+           // interupt from csr
+           input   wire        has_int,
+
            // IDreg bus
            output  wire                        IDreg_valid,
            output  wire [`IDReg_BUS_LEN - 1:0] IDreg_bus,
@@ -42,6 +45,9 @@ module ID(
 wire [15:0] ebus_init;
 wire [15:0] ebus_end;
 wire        has_sys;
+wire        has_ine;
+wire        has_brk;
+wire [54:0] has_inst;
 
 // IFreg_bus Decode
 wire    [31:0]  inst, pc;
@@ -53,6 +59,9 @@ wire        csr_re, csr_we;
 wire [13:0] csr_num;
 wire [31:0] csr_wvalue, csr_wmask;
 wire [79:0] csr_ctrl;
+
+// stable counter
+wire [ 1:0] rdcntv_op;               // = {inst_rdcntvh_w,inst_rdcntvl_w}
 
 // ertn
 wire        ertn_flush;
@@ -90,6 +99,9 @@ wire [ 5:0] op_31_26;
 wire [ 3:0] op_25_22;
 wire [ 1:0] op_21_20;
 wire [ 4:0] op_19_15;
+wire [ 4:0] op_14_10;
+wire [ 4:0] op_9_5;
+wire [ 4:0] op_4_0;
 wire [ 4:0] rd;
 wire [ 4:0] rj;
 wire [ 4:0] rk;
@@ -102,6 +114,9 @@ wire [63:0] op_31_26_d;
 wire [15:0] op_25_22_d;
 wire [ 3:0] op_21_20_d;
 wire [31:0] op_19_15_d;
+wire [31:0] op_14_10_d;
+wire [31:0] op_9_5_d;
+wire [31:0] op_4_0_d;
 
 wire        inst_add_w;
 wire        inst_sub_w;
@@ -174,6 +189,12 @@ wire        inst_csrxchg;
 wire        inst_ertn;
 wire        inst_syscall;
 
+// rdcn, break (exp13)
+wire        inst_break;
+wire        inst_rdcntvl_w;
+wire        inst_rdcntvh_w;
+wire        inst_rdcntid;
+
 wire [31:0] alu_src1   ;
 wire [31:0] alu_src2   ;
 
@@ -182,6 +203,9 @@ assign op_31_26  = inst[31:26];
 assign op_25_22  = inst[25:22];
 assign op_21_20  = inst[21:20];
 assign op_19_15  = inst[19:15];
+assign op_14_10  = inst[14:10];
+assign op_9_5    = inst[ 9: 5];
+assign op_4_0    = inst[ 4: 0];
 
 assign rd   = inst[ 4: 0];
 assign rj   = inst[ 9: 5];
@@ -196,6 +220,9 @@ decoder_6_64 u_dec0(.in(op_31_26 ), .out(op_31_26_d ));
 decoder_4_16 u_dec1(.in(op_25_22 ), .out(op_25_22_d ));
 decoder_2_4  u_dec2(.in(op_21_20 ), .out(op_21_20_d ));
 decoder_5_32 u_dec3(.in(op_19_15 ), .out(op_19_15_d ));
+decoder_5_32 u_dec4(.in(op_14_10 ), .out(op_14_10_d ));
+decoder_5_32 u_dec5(.in(op_9_5   ), .out(op_9_5_d   ));
+decoder_5_32 u_dec6(.in(op_4_0   ), .out(op_4_0_d   ));
 
 assign inst_add_w  = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h1] & op_19_15_d[5'h00];
 assign inst_sub_w  = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h1] & op_19_15_d[5'h02];
@@ -258,6 +285,12 @@ assign inst_csrwr       = op_31_26_d[6'h01] & ~(|op_25_22[3:2]) & (rj == 5'b1);
 assign inst_csrxchg     = op_31_26_d[6'h01] & ~(|op_25_22[3:2]) & (|rj[4:1]);
 assign inst_syscall     = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h2] & op_19_15_d[5'h16];
 assign inst_ertn        = op_31_26_d[6'h01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h10] & (rk == 5'h0e) & ~(|rj) & ~(|rd);
+
+// rdcn, break (exp13)
+assign inst_break       = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h2] & op_19_15_d[5'h14];
+assign inst_rdcntvl_w   = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h0] & op_19_15_d[5'h00] & op_14_10_d[5'h18] & op_9_5_d[5'h00];
+assign inst_rdcntvh_w   = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h0] & op_19_15_d[5'h00] & op_14_10_d[5'h19] & op_9_5_d[5'h00];
+assign inst_rdcntid     = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h0] & op_19_15_d[5'h00] & op_14_10_d[5'h18] & op_4_0_d[5'h00];
 
 /***************************************************************************
     alu_op[2:0] is also used as mul_op,
@@ -325,14 +358,16 @@ assign src2_is_imm   = inst_slli_w |
 assign res_from_mem  = inst_ld_w | inst_ld_b | inst_ld_bu | inst_ld_h | inst_ld_hu;
 assign dst_is_r1     = inst_bl;
 assign gr_we         =  ~inst_st_w & ~inst_st_b & ~inst_st_h &
-       ~inst_beq & ~inst_bne & ~inst_b & ~inst_blt & ~inst_bge & ~inst_bltu & ~inst_bgeu & ~inst_ertn & ~ inst_syscall;
+       ~inst_beq & ~inst_bne & ~inst_b & ~inst_blt & ~inst_bge & ~inst_bltu & ~inst_bgeu & ~inst_ertn & ~ inst_syscall & ~inst_break;
 assign st_ctrl  = {inst_st_w, inst_st_h, inst_st_b};
 assign ld_ctrl  = {inst_ld_w, inst_ld_b, inst_ld_bu, inst_ld_h, inst_ld_hu};
 assign mem_en        = res_from_mem | inst_st_w | inst_st_h | inst_st_b;
 assign mul      = inst_mul_w | inst_mulh_w | inst_mulh_wu;
 assign div      = inst_div_w | inst_div_wu | inst_mod_w | inst_mod_wu;
 
-assign dest          = dst_is_r1 ? 5'd1 : rd;
+assign dest          = dst_is_r1 ? 5'd1 : 
+                       inst_rdcntid ? rj :
+                       rd;
 
 assign rf_raddr1 = rj;
 assign rf_raddr2 = src_reg_is_rd ? rd :rk;
@@ -368,18 +403,41 @@ assign rf_we    = gr_we && valid;
 assign rf_waddr = dest;
 
 // CSR
-assign csr_num      = inst[23:10];
-assign csr_re       = inst_csrrd | inst_csrxchg | inst_csrwr;
+assign csr_num      = inst_rdcntid ? `CSR_TID : inst[23:10];
+assign csr_re       = inst_csrrd | inst_csrxchg | inst_csrwr | inst_rdcntid;
 assign csr_we       = inst_csrwr | inst_csrxchg;
 assign csr_wvalue   = rkd_value;
 assign csr_wmask    = inst_csrxchg ? rj_value : {32{1'b1}};
 assign csr_ctrl = {csr_num, csr_re, csr_we, csr_wvalue, csr_wmask};
-assign res_from_csr = inst_csrrd | inst_csrxchg | inst_csrwr;
+assign res_from_csr = inst_csrrd | inst_csrxchg | inst_csrwr | inst_rdcntid;
+
+// time counter
+assign rdcntv_op = {inst_rdcntvh_w, inst_rdcntvl_w};
 
 // exception
 assign has_sys = inst_syscall;
-assign ebus_end = ebus_init | {{15-`EBUS_SYS{1'b0}}, has_sys, {`EBUS_SYS{1'b0}}};
+assign ebus_end = ebus_init | ({{15-`EBUS_SYS{1'b0}}, has_sys, {`EBUS_SYS{1'b0}}}
+                             | {{15-`EBUS_INE{1'b0}}, has_ine, {`EBUS_INE{1'b0}}}
+                             | {{15-`EBUS_BRK{1'b0}}, has_brk, {`EBUS_BRK{1'b0}}}
+                             | {{15-`EBUS_INT{1'b0}}, has_int, {`EBUS_INT{1'b0}}}) & {16{valid}};
 assign ertn_flush = inst_ertn;
+
+// exp13 ine
+// [hint] add new instruction to this
+assign has_inst = {inst_rdcntid, inst_rdcntvh_w, inst_rdcntvl_w, inst_break,
+                   inst_ertn, inst_syscall, inst_csrxchg, inst_csrwr, inst_csrrd,
+                   inst_ld_hu, inst_ld_bu, inst_st_h, inst_st_b, inst_ld_h, inst_ld_b,
+                   inst_bgeu, inst_bltu, inst_bge, inst_blt,
+                   inst_mod_wu, inst_div_wu, inst_mod_w, inst_div_w, inst_mulh_wu, inst_mulh_w, inst_mul_w,
+                   inst_pcaddu12i, inst_sra_w, inst_srl_w, inst_sll_w,
+                   inst_xori, inst_ori, inst_andi, inst_sltui, inst_slti,
+                   inst_lu12i_w, inst_bne, inst_beq, inst_bl, inst_b, inst_jirl,
+                   inst_st_w, inst_ld_w, inst_addi_w, inst_srai_w, inst_srli_w, inst_slli_w,
+                   inst_xor, inst_or, inst_and, inst_nor, inst_sltu, inst_slt, inst_sub_w, inst_add_w};
+assign has_ine = ~(|has_inst);
+
+// exp13 brk
+assign has_brk = inst_break;
 
 // IDreg_bus
 wire    [`ID2EX_LEN - 1:0]  IDreg_2EX;
@@ -387,7 +445,7 @@ wire    [`ID2MEM_LEN - 1:0] IDreg_2MEM;
 wire    [`ID2WB_LEN - 1:0]  IDreg_2WB;
 
 assign IDreg_valid      = valid;
-assign IDreg_2EX        = {ebus_end, alu_op, alu_src1, alu_src2, mul, div};
+assign IDreg_2EX        = {rdcntv_op, ebus_end, alu_op, alu_src1, alu_src2, mul, div};
 assign IDreg_2MEM       = {rkd_value, mem_en, st_ctrl, ld_ctrl};
 assign IDreg_2WB        = {ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc};
 

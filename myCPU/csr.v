@@ -196,8 +196,8 @@ assign csr_crmd_datm = 2'b00;
         if (wb_ex)
             csr_era_pc <= wb_pc;
         else if (csr_we && csr_num==`CSR_ERA)
-            csr_era_pc <= csr_wmask[`CSR_ERA_PC]&csr_wvalue[`CSR_ERA_PC]
-                    | ~csr_wmask[`CSR_ERA_PC]&csr_era_pc;
+            csr_era_pc <= csr_wmask[`CSR_ERA_PC] & csr_wvalue[`CSR_ERA_PC] |
+                          ~csr_wmask[`CSR_ERA_PC] & csr_era_pc;
     end
 
 

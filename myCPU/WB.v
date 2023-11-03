@@ -63,7 +63,11 @@ assign debug_wb_rf_wnum     = rf_waddr;
 assign debug_wb_rf_we       = {4{rf_we}};
 
 // exception
-assign ebus_end = ebus_init; 
+assign ebus_end = ebus_init;
+
+// exp13 adef
+wire [31:0] wb_vaddr;
+assign wb_vaddr = ebus_end[6] ? wb_pc : 32'b0;
 
 // data harzard bypass
 assign WB_bypass_bus    = {res_from_csr, rf_waddr, rf_we, rf_wdata};
@@ -75,8 +79,23 @@ assign WB_allow_in          = 1;
 // CSR
 assign wb_ex = |ebus_end;
 assign wb_pc = pc;
-assign wb_ecode =  ebus_end[`EBUS_SYS] ? `ECODE_SYS : 6'b0;
-assign wb_esubcode = 0;
-assign to_csr_in_bus = {ertn_flush, wb_ex, wb_ecode, wb_esubcode, wb_pc};
+assign wb_ecode =  {6{ebus_end[`EBUS_INT]}} & `ECODE_INT |
+                   {6{ebus_end[`EBUS_PIL]}} & `ECODE_PIL |
+                   {6{ebus_end[`EBUS_PIS]}} & `ECODE_PIS |
+                   {6{ebus_end[`EBUS_PIF]}} & `ECODE_PIF |
+                   {6{ebus_end[`EBUS_PME]}} & `ECODE_PME |
+                   {6{ebus_end[`EBUS_PPI]}} & `ECODE_PPI |
+                   {6{ebus_end[`EBUS_ADEF]}} & `ECODE_ADE |
+                   {6{ebus_end[`EBUS_ADEM]}} & `ECODE_ADE |
+                   {6{ebus_end[`EBUS_ALE]}} & `ECODE_ALE |
+                   {6{ebus_end[`EBUS_SYS]}} & `ECODE_SYS |
+                   {6{ebus_end[`EBUS_BRK]}} & `ECODE_BRK |
+                   {6{ebus_end[`EBUS_INE]}} & `ECODE_INE |
+                   {6{ebus_end[`EBUS_IPE]}} & `ECODE_IPE |
+                   {6{ebus_end[`EBUS_FPD]}} & `ECODE_FPD |
+                   {6{ebus_end[`EBUS_FPE]}} & `ECODE_FPE |
+                   {6{ebus_end[`EBUS_TLBR]}} & `ECODE_TLBR;
+assign wb_esubcode = {9{ebus_end[7]}} & `ESUBCODE_ADEM;
+assign to_csr_in_bus = {ertn_flush, wb_ex, wb_ecode, wb_esubcode, wb_pc, wb_vaddr};
 
 endmodule

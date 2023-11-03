@@ -26,7 +26,11 @@ module EX(
            output  wire                        EXreg_valid,
            output  wire [`EXReg_BUS_LEN - 1:0] EXreg_bus,
 
-           input wire st_disable
+           input wire st_disable,
+
+           // rdcntv
+           input wire [31:0] counter_value,
+           output wire [1:0] rdcntv_op
        );
 
 /************************************************************************************
@@ -63,7 +67,9 @@ wire            res_from_mem;
 wire    [4:0]   rf_waddr;
 wire    [31:0]  pc;
 
-assign  {ebus_init, alu_op, alu_src1, alu_src2, mul, div}      = ID2EX_bus;
+wire       res_from_rdcntv;
+
+assign  {rdcntv_op, ebus_init, alu_op, alu_src1, alu_src2, mul, div}      = ID2EX_bus;
 assign  {rkd_value, mem_en, st_ctrl, ld_ctrl}       = ID2MEM_bus;
 assign  {ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc}         = ID2WB_bus;
 
@@ -121,13 +127,24 @@ assign st_data  = {32{st_ctrl[0]}} & {4{rkd_value[7:0]}}
        | {32{st_ctrl[1]}} & {2{rkd_value[15:0]}}
        | {32{st_ctrl[2]}} & {rkd_value[31:0]};
 
-assign data_sram_en     = mem_en & valid;
+// exp13 ale
+wire has_ale;
+assign has_ale = st_ctrl[1] && alu_result[0]                    ||
+                 st_ctrl[2] && (alu_result[0] || alu_result[1]) ||
+                 ld_ctrl[0] && alu_result[0]                    ||
+                 ld_ctrl[1] && alu_result[0]                    ||
+                 ld_ctrl[4] && (alu_result[0] || alu_result[1]);
+
+assign data_sram_en     = mem_en & valid & !has_ale;
 assign data_sram_addr   = {alu_result[31:2], 2'b0};
 assign data_sram_wdata  = st_data;
 assign data_sram_we     = mem_we & {4{valid & ~st_disable}};
 
+// exp13 rdcntv
+assign res_from_rdcntv = |rdcntv_op;
+
 // exception
-assign ebus_end = ebus_init;
+assign ebus_end = ebus_init | {{15-`EBUS_ALE{1'b0}}, has_ale, {`EBUS_ALE{1'b0}}} & {16{valid}};
 
 // EXreg_bus
 assign EXreg_valid      = valid;
@@ -140,7 +157,8 @@ assign  EX_rf_waddr         = rf_waddr;
 assign  EX_rf_we            = rf_we & valid;
 assign  EX_res_from_mem     = res_from_mem;
 assign  EX_result           =   div ? div_result :
-        alu_result;
+                                res_from_rdcntv ? counter_value :
+                                alu_result;
 
 assign  EX_bypass_bus       = {res_from_csr, EX_rf_waddr, EX_rf_we, mul, EX_res_from_mem, EX_result};
 

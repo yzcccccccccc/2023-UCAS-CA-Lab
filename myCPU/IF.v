@@ -65,10 +65,22 @@ assign pc_next                  = (ertn_flush&except_valid) ? era_pc :
                                     (wb_ex&except_valid) ? ex_entry :
                                     br_taken ? br_target : pc_seq;
 
+// exp13 ADEF
+// detect ADEF when pre-IF
+// not set adef_ex until the wrong pc go to IF stage
+reg has_adef;
+always@(posedge clk)
+begin
+    if(reset)
+        has_adef <= 1'b0;
+    else
+        has_adef <= pc_next[1:0] != 2'b0;
+end
+
 // IF
 assign inst_sram_we     = 4'b0;
 assign inst_sram_en     = ID_allow_in & ~reset | (wb_ex&except_valid) | (ertn_flush&except_valid);               // don't need to care about ID_allow_in when wb_ex or ertn_flush
-assign inst_sram_addr   = (ID_allow_in | (wb_ex&except_valid) | (ertn_flush&except_valid)) ? pc_next : pc;       // kind of 'blocking pc (instruction) in IF'.
+assign inst_sram_addr   = pc_next;//(ID_allow_in | (wb_ex&except_valid) | (ertn_flush&except_valid)) ? pc_next : pc;       // kind of 'blocking pc (instruction) in IF'.
 assign inst_sram_wdata  = 32'b0;
 assign inst             = inst_sram_rdata;
 
@@ -82,7 +94,7 @@ begin
 end
 
 // exception
-assign ebus_end = ebus_init;
+assign ebus_end = ebus_init | {{15-`EBUS_ADEF{1'b0}}, has_adef, {`EBUS_ADEF{1'b0}}} & {16{IF_valid}};
 
 // to IFreg_bus
 assign IFreg_valid      = IF_valid & ~br_taken;

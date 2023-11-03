@@ -2,10 +2,10 @@
 
 `define IFReg_BUS_LEN   80      /* IF2ID    = {ebus_end, inst, pc} */
 
-`define ID2EX_LEN       94      /* ID2EX    = {ebus_end, alu_op, alu_src1, alu_src2, mul, div} */
+`define ID2EX_LEN       96      /* ID2EX    = {rdcntv_op, ebus_end, alu_op, alu_src1, alu_src2, mul, div} */
 `define ID2MEM_LEN      41      /* ID2MEM   = {rkd_value, mem_en, st_ctrl, ld_ctrl} */
 `define ID2WB_LEN       121     /* ID2WB    = {ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc} */
-`define IDReg_BUS_LEN   256     /* = {ID2EX, ID2MEM, ID2WB} */
+`define IDReg_BUS_LEN   258     /* = {ID2EX, ID2MEM, ID2WB} */
 
 `define EX2MEM_LEN      118     /* EX2MEM   = {ebus_end, mul, mul_result, EX_result, rdk_value, ld_ctrl}*/
 `define EX2WB_LEN       121
@@ -71,7 +71,7 @@
 `define CSR_TCFG_INITV  31:2
 
 // WB to CSR bus
-`define WB2CSR_LEN      49          /* = {ertn_flush, wb_ex, wb_ecode[5:0], wb_esubcode[8:0], wb_pc[31:0]} */
+`define WB2CSR_LEN      81          /* = {ertn_flush, wb_ex, wb_ecode[5:0], wb_esubcode[8:0], wb_pc[31:0], wb_vaddr[31:0]} */
 
 // CSR Exception Code
 `define ECODE_INT         6'h00

@@ -33,12 +33,16 @@ end
 
 // timer (for rdcnt)
     reg [63:0]      timecnt;
+    wire [31:0]     counter_value;
+    wire [1:0]      rdcntv_op;
     always @(posedge clk) begin
         if (reset)
             timecnt <= 0;
         else
             timecnt <= timecnt + 1'b1;
     end
+    assign counter_value = {32{rdcntv_op[0]}} & timecnt[31:0] |
+                           {32{rdcntv_op[1]}} & timecnt[63:32];
 
 // Bus & piepeline control signals
 // bus
@@ -113,7 +117,7 @@ csr u_csr(
         // inst interface
         .csr_ctrl(csr_ctrl),
         .csr_rvalue(csr_rvalue),
-
+        
         // Request inst valid
         .valid(MEMreg_valid),
 
@@ -193,6 +197,8 @@ ID  u_ID(
         .rf_rdata1(rf_rdata1),
         .rf_rdata2(rf_rdata2),
 
+        .has_int(has_int),
+
         .IDreg_valid(toIDreg_valid_bus),
         .IDreg_bus(IDreg_bus),
 
@@ -223,7 +229,10 @@ EX  u_EX(
         .EXreg_valid(toEXreg_valid_bus),
         .EXreg_bus(EXreg_bus),
 
-        .st_disable(st_disable)
+        .st_disable(st_disable),
+
+        .rdcntv_op(rdcntv_op),
+        .counter_value(counter_value)
     );
 
 // MEM
@@ -270,8 +279,8 @@ WB  u_WB(
         .csr_rvalue(csr_rvalue),
         .to_csr_in_bus(CSR_in_bus)
     );
-assign wb_ex = CSR_in_bus[47];
-assign ertn_flush = CSR_in_bus[48];
+assign wb_ex = CSR_in_bus[79];
+assign ertn_flush = CSR_in_bus[80];
 
 // Pipeline update
 // IFreg
