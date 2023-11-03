@@ -21,7 +21,9 @@ module MEM(
 
            // MEMReg bus
            output  wire                            MEMreg_valid,
-           output  wire [`MEMReg_BUS_LEN - 1:0]    MEMreg_bus
+           output  wire [`MEMReg_BUS_LEN - 1:0]    MEMreg_bus,
+
+           output wire ertn_flush
        );
 
 // ebus
@@ -83,7 +85,7 @@ assign MEM_ready_go         = 1;
 assign MEM_bypass_bus       = {res_from_csr, rf_waddr, rf_we & valid, MEM_final_result};
 
 // MEMreg_bus
-assign MEMreg_valid         = valid;
+assign MEMreg_valid         = valid | ebus_end[`EBUS_ADEF];
 assign MEMreg_bus           = {ebus_end, ertn_flush, csr_ctrl, res_from_csr, MEM_final_result, rf_we, rf_waddr, pc};
 
 endmodule

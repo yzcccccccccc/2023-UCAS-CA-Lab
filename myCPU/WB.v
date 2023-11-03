@@ -30,7 +30,9 @@ module WB(
            // CSR
            input wire [31:0] csr_rvalue,
            output wire [79:0] csr_ctrl,
-           output wire [`WB2CSR_LEN-1:0] to_csr_in_bus
+           output wire [`WB2CSR_LEN-1:0] to_csr_in_bus,
+
+           output wire ertn_flush
        );
 
 // to CSR

@@ -30,7 +30,9 @@ module EX(
 
            // rdcntv
            input wire [31:0] counter_value,
-           output wire [1:0] rdcntv_op
+           output wire [1:0] rdcntv_op,
+
+           input wire ertn_cancel
        );
 
 /************************************************************************************
@@ -135,7 +137,7 @@ assign has_ale = st_ctrl[1] && alu_result[0]                    ||
                  ld_ctrl[1] && alu_result[0]                    ||
                  ld_ctrl[4] && (alu_result[0] || alu_result[1]);
 
-assign data_sram_en     = mem_en & valid & !has_ale;
+assign data_sram_en     = mem_en & valid & !has_ale & !ertn_cancel;
 assign data_sram_addr   = {alu_result[31:2], 2'b0};
 assign data_sram_wdata  = st_data;
 assign data_sram_we     = mem_we & {4{valid & ~st_disable}};

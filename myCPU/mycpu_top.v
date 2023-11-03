@@ -232,7 +232,9 @@ EX  u_EX(
         .st_disable(st_disable),
 
         .rdcntv_op(rdcntv_op),
-        .counter_value(counter_value)
+        .counter_value(counter_value),
+
+        .ertn_cancel(MEM_ertn||WB_ertn)
     );
 
 // MEM
@@ -255,7 +257,8 @@ MEM u_MEM(
         .MEM_ready_go(MEM_ready_go),
         .MEM_bypass_bus(MEM_bypass_bus),
         .MEMreg_valid(toMEMreg_valid_bus),
-        .MEMreg_bus(MEMreg_bus)
+        .MEMreg_bus(MEMreg_bus),
+        .ertn_flush(MEM_ertn)
     );
 
 // WB
@@ -277,7 +280,8 @@ WB  u_WB(
         .WB_allow_in(WB_allow_in),
         .csr_ctrl(csr_ctrl),
         .csr_rvalue(csr_rvalue),
-        .to_csr_in_bus(CSR_in_bus)
+        .to_csr_in_bus(CSR_in_bus),
+        .ertn_flush(WB_ertn)
     );
 assign wb_ex = CSR_in_bus[79];
 assign ertn_flush = CSR_in_bus[80];
