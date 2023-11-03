@@ -114,6 +114,9 @@ csr u_csr(
         .csr_ctrl(csr_ctrl),
         .csr_rvalue(csr_rvalue),
 
+        // Request inst valid
+        .valid(MEMreg_valid),
+
         // circuit interface
         .CSR_in_bus(CSR_in_bus),
         .ex_entry(ex_entry),
