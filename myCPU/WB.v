@@ -69,7 +69,7 @@ assign ebus_end = ebus_init;
 
 // exp13 adef
 wire [31:0] wb_vaddr;
-assign wb_vaddr = ebus_end[6] ? wb_pc : 32'b0;
+assign wb_vaddr = final_result;
 
 // data harzard bypass
 assign WB_bypass_bus    = {res_from_csr, rf_waddr, rf_we, rf_wdata};

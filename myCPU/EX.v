@@ -151,13 +151,13 @@ assign ebus_end = ebus_init | {{15-`EBUS_ALE{1'b0}}, has_ale, {`EBUS_ALE{1'b0}}}
 // EXreg_bus
 assign EXreg_valid      = valid;
 assign EXreg_2MEM       = {ebus_end, mul, mul_result, EX_result, rkd_value, ld_ctrl};
-assign EXreg_2WB        = {ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc};
+assign EXreg_2WB        = {ertn_flush, csr_ctrl, res_from_csr, rf_we, EX_res_from_mem, rf_waddr, pc};
 assign EXreg_bus        = {EXreg_2MEM, EXreg_2WB};
 
 // Data Harzard Bypass
 assign  EX_rf_waddr         = rf_waddr;
 assign  EX_rf_we            = rf_we & valid;
-assign  EX_res_from_mem     = res_from_mem;
+assign  EX_res_from_mem     = res_from_mem & !has_ale;
 assign  EX_result           =   div ? div_result :
                                 res_from_rdcntv ? counter_value :
                                 alu_result;
