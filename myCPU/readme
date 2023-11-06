@@ -22,3 +22,30 @@
     1.实现了例外和中断（还不知道是否有bug）
     2.增加了读计数器指令（比较简单，应该不会出bug）
     3.上板通过了
+
+############################################
+        exp14
+############################################
+2023.11.6
+[info]:
+    修改/myCPU的文件层级结构。
+./myCPU
+├── functional_part
+│   ├── alu.v
+│   ├── csr.v
+│   ├── data_harzard_detector.v
+│   ├── divider.v
+│   ├── multiplier.v
+│   ├── regfile.v
+│   └── tools.v
+├── macro.vh
+├── mmu
+├── mycpu_top.v
+├── pipeline
+│   ├── EX.v
+│   ├── ID.v
+│   ├── IF.v
+│   ├── MEM.v
+│   └── WB.v
+└── readme
+    mmu目录设想是用来放访存相关的，最终会有一个mmu_top.v，然后包含TLB、AXI转接桥等等。

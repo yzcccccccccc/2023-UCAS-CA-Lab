@@ -1,34 +1,44 @@
 `include "macro.vh"
 
 module IF(
-           input  wire        clk,
-           input  wire        reset,
+    input  wire        clk,
+    input  wire        reset,
 
-           // inst sram interface
-           output wire [3:0]  inst_sram_we,
-           output wire        inst_sram_en,
-           output wire [31:0] inst_sram_addr,
-           output wire [31:0] inst_sram_wdata,
-           input  wire [31:0] inst_sram_rdata,
+    // inst sram interface
+    output wire [3:0]  inst_sram_we,
+    output wire        inst_sram_en,
+    output wire [31:0] inst_sram_addr,
+    output wire [31:0] inst_sram_wdata,
+    input  wire [31:0] inst_sram_rdata,
 
-           // control signals
-           output wire         IF_ready_go,
-           input  wire         ID_allow_in,
+    output  wire        inst_sram_req,
+    output  wire        inst_sram_wr,
+    output  wire [1:0]  inst_sram_size,
+    output  wire [31:0] inst_sram_addr,
+    output  wire [3:0]  inst_sram_wstrb,
+    output  wire [31:0] inst_sram_wdata,
+    input   wire        inst_sram_addr_ok,
+    input   wire        inst_sram_data_ok,
+    input   wire [31:0] inst_sram_rdata,
 
-           // IFreg bus
-           output wire                         IFreg_valid,
-           output wire [`IFReg_BUS_LEN - 1:0]  IFreg_bus,
+    // control signals
+    output wire         IF_ready_go,
+    input  wire         ID_allow_in,
 
-           // BR_BUS (={br_target, br_taken})
-           input  wire [`BR_BUS_LEN - 1:0] BR_BUS,
+    // IFreg bus
+    output wire                         IFreg_valid,
+    output wire [`IFReg_BUS_LEN - 1:0]  IFreg_bus,
 
-           // exception
-           input wire except_valid,
-           input wire wb_ex,
-           input wire [31:0] ex_entry,
-           input wire ertn_flush,
-           input wire [31:0] era_pc
-       );
+    // BR_BUS (={br_target, br_taken})
+    input  wire [`BR_BUS_LEN - 1:0] BR_BUS,
+
+    // exception
+    input wire except_valid,
+    input wire wb_ex,
+    input wire [31:0] ex_entry,
+    input wire ertn_flush,
+    input wire [31:0] era_pc
+);
 
 reg     [31:0]  pc;
 wire    [31:0]  pc_next;
