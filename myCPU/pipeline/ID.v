@@ -68,6 +68,7 @@ wire        ertn_flush;
 
 wire        br_taken;
 wire        br_cancel;
+wire        br_stall;
 wire [31:0] br_target;
 
 wire [11:0] alu_op;
@@ -378,7 +379,11 @@ assign rkd_value = addr2_occur? addr2_forward : rf_rdata2;
 assign rj_eq_rd             = (rj_value == rkd_value);
 assign signed_rj_lt_rd      = ($signed(rj_value) < $signed(rkd_value));
 assign unsigned_rj_lt_rd    = (rj_value < rkd_value);
-assign br_taken = (   inst_beq  &&  rj_eq_rd
+
+wire   type_bj;
+assign type_bj       = inst_beq | inst_b | inst_bge | inst_bgeu | inst_bl | inst_blt | inst_bltu
+                     | inst_bne | inst_jirl;
+assign br_taken      = (   inst_beq  &&  rj_eq_rd
                       || inst_bne  && !rj_eq_rd
                       || inst_blt && signed_rj_lt_rd
                       || inst_bge && !signed_rj_lt_rd
@@ -387,10 +392,11 @@ assign br_taken = (   inst_beq  &&  rj_eq_rd
                       || inst_jirl
                       || inst_bl
                       || inst_b
-                  ) && valid;
-assign br_target = (inst_beq || inst_bne || inst_bl || inst_b || inst_blt || inst_bltu || inst_bge || inst_bgeu) ? (pc + br_offs) :
-       /*inst_jirl*/ (rj_value + jirl_offs);
-assign br_cancel = br_taken;
+                     ) && valid;
+assign br_target     = (inst_beq || inst_bne || inst_bl || inst_b || inst_blt || inst_bltu || inst_bge || inst_bgeu) ? (pc + br_offs) :
+                            /*inst_jirl*/ (rj_value + jirl_offs);
+assign br_cancel     = br_taken;
+assign br_stall      = pause & type_bj;
 
 /*****************************************************************
         alu_src1 is also used as mul_src1 and div_src1
@@ -456,6 +462,6 @@ assign ID_ready_go      = ~pause;
 assign ID_allow_in      = EX_allow_in & ID_ready_go;
 
 // BR_BUS
-assign BR_BUS       = {br_target, br_taken};
+assign BR_BUS       = {br_target, br_taken, br_stall};
 
 endmodule

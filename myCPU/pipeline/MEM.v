@@ -1,30 +1,31 @@
 `include "macro.vh"
 module MEM(
-           input   wire        clk,
-           input   wire        reset,
+       input   wire        clk,
+       input   wire        reset,
 
-           // valid & EXreg_bus
-           input   wire                        valid,
-           input   wire [`EXReg_BUS_LEN - 1:0] EXreg_bus,
+       // valid & EXreg_bus
+       input   wire                        valid,
+       input   wire [`EXReg_BUS_LEN - 1:0] EXreg_bus,
 
-           // data mem interface
-           input   wire [31:0] data_sram_rdata,
+       // data mem interface
+       input   wire        data_sram_data_ok,
+       input   wire [31:0] data_sram_rdata,
 
-           // control signals
-           input   wire        EX_ready_go,
-           input   wire        WB_allow_in,
-           output  wire        MEM_allow_in,
-           output  wire        MEM_ready_go,
+       // control signals
+       input   wire        EX_ready_go,
+       input   wire        WB_allow_in,
+       output  wire        MEM_allow_in,
+       output  wire        MEM_ready_go,
 
-           // data harzard bypass
-           output  wire [`MEM_BYPASS_LEN - 1:0]    MEM_bypass_bus,
+       // data harzard bypass
+       output  wire [`MEM_BYPASS_LEN - 1:0]    MEM_bypass_bus,
 
-           // MEMReg bus
-           output  wire                            MEMreg_valid,
-           output  wire [`MEMReg_BUS_LEN - 1:0]    MEMreg_bus,
+       // MEMReg bus
+       output  wire                            MEMreg_valid,
+       output  wire [`MEMReg_BUS_LEN - 1:0]    MEMreg_bus,
 
-           output wire ertn_flush
-       );
+       output wire ertn_flush
+);
 
 // ebus
 wire [15:0] ebus_init;
@@ -79,7 +80,7 @@ assign ebus_end = ebus_init;
 
 // control signals
 assign MEM_allow_in         = WB_allow_in & MEM_ready_go;
-assign MEM_ready_go         = 1;
+assign MEM_ready_go         = data_sram_data_ok;
 
 // data harzard bypass
 assign MEM_bypass_bus       = {res_from_csr, rf_waddr, rf_we & valid, MEM_final_result};

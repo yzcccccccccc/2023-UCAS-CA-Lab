@@ -1,39 +1,47 @@
 `include "macro.vh"
 module EX(
-           input   wire        clk,
-           input   wire        reset,
+    input   wire        clk,
+    input   wire        reset,
 
-           // valid & IDreg_bus
-           input   wire                        valid,
-           input   wire [`IDReg_BUS_LEN - 1:0] IDreg_bus,
+    // valid & IDreg_bus
+    input   wire                        valid,
+    input   wire [`IDReg_BUS_LEN - 1:0] IDreg_bus,
 
-           // control signals
-           input   wire        ID_ready_go,
-           input   wire        MEM_allow_in,
-           output  wire        EX_allow_in,
-           output  wire        EX_ready_go,
+    // control signals
+    input   wire        ID_ready_go,
+    input   wire        MEM_allow_in,
+    output  wire        EX_allow_in,
+    output  wire        EX_ready_go,
 
-           // data ram interface (Read)
-           output  wire         data_sram_en,
-           output  wire [31:0]  data_sram_addr,
-           output  wire [31:0]  data_sram_wdata,
-           output  wire [3:0]   data_sram_we,
+    // data ram interface
+    output  wire         data_sram_en,
+    output  wire [31:0]  data_sram_addr,
+    output  wire [31:0]  data_sram_wdata,
+    output  wire [3:0]   data_sram_we,
 
-           // data harzard bypass
-           output  wire [`EX_BYPASS_LEN - 1:0] EX_bypass_bus,
+    output  wire        data_sram_req,
+    output  wire        data_sram_wr,
+    output  wire [1:0]  data_sram_size,
+    output  wire [31:0] data_sram_addr,
+    output  wire [3:0]  data_sram_wstrb,
+    output  wire [31:0] data_sram_wdata,
+    input   wire        data_sram_addr_ok,
 
-           // EXreg bus
-           output  wire                        EXreg_valid,
-           output  wire [`EXReg_BUS_LEN - 1:0] EXreg_bus,
+    // data harzard bypass
+    output  wire [`EX_BYPASS_LEN - 1:0] EX_bypass_bus,
 
-           input wire st_disable,
+    // EXreg bus
+    output  wire                        EXreg_valid,
+    output  wire [`EXReg_BUS_LEN - 1:0] EXreg_bus,
 
-           // rdcntv
-           input wire [31:0] counter_value,
-           output wire [1:0] rdcntv_op,
+    input wire st_disable,
 
-           input wire ertn_cancel
-       );
+    // rdcntv
+    input wire [31:0] counter_value,
+    output wire [1:0] rdcntv_op,
+
+    input wire ertn_cancel
+);
 
 /************************************************************************************
     Hint:
@@ -137,10 +145,14 @@ assign has_ale = st_ctrl[1] && alu_result[0]                    ||
                  ld_ctrl[1] && alu_result[0]                    ||
                  ld_ctrl[4] && (alu_result[0] || alu_result[1]);
 
-assign data_sram_en     = mem_en & valid & !has_ale & !ertn_cancel;
-assign data_sram_addr   = {alu_result[31:2], 2'b0};
+assign data_sram_req    = mem_en & valid & ~has_ale & ~ertn_cancel & ~st_disable & MEM_allow_in;
+assign data_sram_addr   = alu_result;
+assign data_sram_size   = {2{st_ctrl[2] | ld_ctrl[4]}} & 2'd2
+                        | {2{st_ctrl[1] | ld_ctrl[1] | ld_ctrl[0]}} & 2'd1
+                        | {2{st_ctrl[1] | ld_ctrl[2] | ld_ctrl[3]}} & 2'd0;
+assign data_sram_wr     = (|st_ctrl) & ~(|ld_ctrl);
 assign data_sram_wdata  = st_data;
-assign data_sram_we     = mem_we & {4{valid & ~st_disable}};
+assign data_sram_wstrb  = mem_we & {4{valid}};
 
 // exp13 rdcntv
 assign res_from_rdcntv = |rdcntv_op;
@@ -149,7 +161,15 @@ assign res_from_rdcntv = |rdcntv_op;
 assign ebus_end = ebus_init | {{15-`EBUS_ALE{1'b0}}, has_ale, {`EBUS_ALE{1'b0}}} & {16{valid}};
 
 // EXreg_bus
-assign EXreg_valid      = valid;
+reg     has_reset;
+always @(posedge clk) begin
+    if (EX_ready_go & MEM_allow_in)
+        has_reset   <= 0;
+    else
+        if (reset)
+            has_reset   <= 1;
+end
+assign EXreg_valid      = valid & ~(reset | has_reset);
 assign EXreg_2MEM       = {ebus_end, mul, mul_result, EX_result, rkd_value, ld_ctrl};
 assign EXreg_2WB        = {ertn_flush, csr_ctrl, res_from_csr, rf_we, EX_res_from_mem, rf_waddr, pc};
 assign EXreg_bus        = {EXreg_2MEM, EXreg_2WB};
@@ -165,7 +185,9 @@ assign  EX_result           =   div ? div_result :
 assign  EX_bypass_bus       = {res_from_csr, EX_rf_waddr, EX_rf_we, mul, EX_res_from_mem, EX_result};
 
 // control signals
-assign EX_ready_go      = (div & valid) ? div_done : 1;
+assign EX_ready_go      = (div & valid) ? div_done
+                        : data_sram_req ? data_sram_addr_ok
+                        : 1;
 assign EX_allow_in      = MEM_allow_in & EX_ready_go;
 
 endmodule

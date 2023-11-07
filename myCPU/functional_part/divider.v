@@ -171,6 +171,6 @@ assign div_res  = {32{div_op[0]}} & signed_res[63:32]
        | {32{div_op[1]}} & unsigned_res[63:32]
        | {32{div_op[2]}} & signed_res[31:0]
        | {32{div_op[3]}} & unsigned_res[31:0];
-assign div_done = signed_enable & signed_dout_tvalid | unsigned_enable & unsigned_dout_tvalid;
+assign div_done = (signed_enable & signed_dout_tvalid | unsigned_enable & unsigned_dout_tvalid) | reset;
 
 endmodule

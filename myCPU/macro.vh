@@ -1,4 +1,4 @@
-`define BR_BUS_LEN      33
+`define BR_BUS_LEN      34
 
 `define IFReg_BUS_LEN   80      /* IF2ID    = {ebus_end, inst, pc} */
 

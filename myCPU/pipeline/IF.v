@@ -5,12 +5,6 @@ module IF(
     input  wire        reset,
 
     // inst sram interface
-    output wire [3:0]  inst_sram_we,
-    output wire        inst_sram_en,
-    output wire [31:0] inst_sram_addr,
-    output wire [31:0] inst_sram_wdata,
-    input  wire [31:0] inst_sram_rdata,
-
     output  wire        inst_sram_req,
     output  wire        inst_sram_wr,
     output  wire [1:0]  inst_sram_size,
@@ -50,7 +44,7 @@ reg             preIF_buf_valid, IF_buf_valid;
 
 wire    [31:0]  pc_seq;
 wire    [31:0]  br_target;
-wire            br_taken;
+wire            br_taken, br_stall;
 
 reg             IF_valid;
 wire            IF_allow_in;
@@ -98,24 +92,57 @@ end
         if(reset)
             has_adef <= 1'b0;
         else
-            has_adef <= preIF_has_adef;
+            if (preIF_ready_go & IF_allow_in)
+                has_adef <= preIF_has_adef;
     end
 
 // Pre IF
-    assign pc_seq                   = pc + 32'h4;
-    assign {br_target, br_taken}    = BR_BUS;
-    assign pc_next                  = (ertn_flush&except_valid) ? era_pc :
-                                    (wb_ex&except_valid) ? ex_entry :
-                                    br_taken ? br_target : pc_seq;
+    reg             ertn_valid, ex_valid, br_valid;
+    reg             ertn_taken_r, ex_taken_r, br_taken_r;
+    reg [31:0]      ertn_pc_r, ex_pc_r, br_pc_r;
+    always @(posedge clk) begin
+        if (reset | preIF_ready_go & IF_allow_in) begin          // reset after a req has been sent
+            {ertn_taken_r, ertn_pc_r}           <= 0;
+            {ex_taken_r, era_pc_r}              <= 0;
+            {br_taken_r, br_pc_r}               <= 0;
+        end
+        else begin
+            if (ertn_flush & except_valid)
+                {ertn_taken_r, ertn_pc_r}   <= {1'b1, era_pc};
+            if (wb_ex & except_valid)
+                {ex_taken_r, ex_pc_r}       <= {1'b1, ex_entry};
+            if (br_taken)
+                {br_taken_r, br_pc_r}       <= {1'b1, br_target};
+        end
+    end
+    assign pc_seq                           = pc + 32'h4;
+    assign {br_target, br_taken, br_stall}  = BR_BUS;
 
-    assign inst_sram_req            = IF_current[isSEND] & (~reset | (wb_ex&except_valid) | (ertn_flush&except_valid)) & ~preIF_has_adef;
+    wire        ertn_tak, ertn_pc;
+    wire        ex_tak, ex_pc;
+    wire        br_tak, br_pc;
+    assign  ertn_tak        = ertn_flush & except_valid | ertn_taken_r;
+    assign  ertn_pc         = {32{ertn_flush & except_valid}} & era_pc
+                            | {32{ertn_taken_r}} & ertn_pc_r;
+    assign  ex_tak          = wb_ex & except_valid | ex_taken_r;
+    assign  ex_pc           = {32{wb_ex & except_valid}} & ex_entry
+                            | {32{ex_taken_r}} & ex_pc_r;
+    assign  br_tak          = br_taken | br_taken_r;
+    assign  br_pc           = {32{br_taken}} & br_target
+                            | {32{br_taken_r}} & br_pc_r;
+    assign  pc_next         = ertn_tak ? ertn_pc
+                            : ex_tak ? ex_pc
+                            : br_tak ? br_pc
+                            : pc_seq;
+
+    assign inst_sram_req            = preIF_current[isSEND] & ~reset & ~preIF_has_adef & ~br_stall;
     assign inst_sram_addr           = pc_next;
     assign inst_sram_wr             = 0;
     assign inst_sram_wstrb          = 0;
     assign inst_sram_wdata          = 0;
     assign inst_sram_size           = 2'b10;            // 2 means 2^2 = 4 bytes.
 
-    assign preIF_ready_go           = inst_sram_req & inst_sram_addr_ok | preIF_has_adef;
+    assign preIF_ready_go           = inst_sram_req & inst_sram_addr_ok | preIF_has_adef | preIF_current[isWAIT];
 
     always @(posedge clk) begin
         if (reset)
@@ -129,7 +156,7 @@ end
             INIT:
                 preIF_next  <= SEND;
             SEND: begin
-                if (!IF_allow_in & preIF_ready_go)
+                if (!IF_allow_in & inst_sram_req & inst_sram_addr_ok)
                     preIF_next  <= WAIT;
                 else
                     preIF_next  <= SEND;
@@ -150,7 +177,7 @@ end
             preIF_buf_inst          <= 0;
         end 
         else begin
-            if (preIF_current[isSEND])
+            if (preIF_current[isSEND] | ertn_tak | ex_tak)
                 preIF_buf_valid     <= 0;
             if (preIF_current[isWAIT] & inst_sram_data_ok & ~IF_allow_in) begin
                 preIF_buf_valid     <= 1;
@@ -159,8 +186,22 @@ end
         end
     end
 
+// to_IF_valid
+    reg         to_IF_valid;
+    always @(posedge clk) begin
+        if (reset)
+            to_IF_valid     <= 0;
+        else
+            if (preIF_ready_go) begin
+                if (ertn_flush & except_valid | wb_ex & except_valid | br_taken | has_adef)
+                    to_IF_valid     <= 0;
+                else
+                    to_IF_valid     <= 1;
+            end
+    end
+
 // IF
-    assign IF_ready_go      = inst_sram_data_ok;
+    assign IF_ready_go      = inst_sram_data_ok | IF_buf_valid;
     assign IF_allow_in      = ID_allow_in & IF_ready_go;
 
     always @(posedge clk) begin
@@ -197,14 +238,14 @@ end
         else begin
             if (IF_current[isSEND])
                 IF_buf_valid    <= 0;
-            if (IF_current[isWAIT] & IF_ready_go & ~ID_allow_in) begin
+            if (IF_current[isWAIT] & inst_sram_data_ok & ~ID_allow_in) begin
                 IF_buf_valid    <= 1;
                 IF_buf_inst     <= preIF_buf_valid ? preIF_buf_inst : inst_sram_rdata;
             end
         end
     end
 
-    assign inst     = preIF_buf_valid ? preIF_buf_inst : inst_sram_rdata;
+    assign inst     = IF_buf_valid ? IF_buf_inst : inst_sram_rdata;
 
 // IF_valid
 always @(posedge clk)
@@ -219,7 +260,7 @@ end
 assign ebus_end = ebus_init | {{15-`EBUS_ADEF{1'b0}}, has_adef, {`EBUS_ADEF{1'b0}}} & {16{IF_valid}};
 
 // to IFreg_bus
-assign IFreg_valid      = IF_valid & ~br_taken & ~(|ebus_end);
+assign IFreg_valid      = to_IF_valid;
 assign IFreg_bus        = {ebus_end, inst, pc};
 
 
