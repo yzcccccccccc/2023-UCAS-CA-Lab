@@ -40,15 +40,21 @@ module IF(
     input wire [31:0] era_pc
 );
 
+// Signal definitions
 reg     [31:0]  pc;
 wire    [31:0]  pc_next;
 wire    [31:0]  inst;
+
+reg     [31:0]  preIF_buf_inst, IF_buf_inst;
+reg             preIF_buf_valid, IF_buf_valid;
 
 wire    [31:0]  pc_seq;
 wire    [31:0]  br_target;
 wire            br_taken;
 
 reg             IF_valid;
+wire            IF_allow_in;
+wire            preIF_ready_go;
 
 /***************************************************
     Hint:
@@ -64,35 +70,141 @@ begin
     if (reset)
         pc <= 32'h1bfffffc;
     else
-        if (ID_allow_in | wb_ex | ertn_flush)
+        if (preIF_ready_go & IF_allow_in)
             pc <= pc_next;
 end
 
+// FSM control
+    reg [2:0]   preIF_current, preIF_next, IF_current, IF_next;
+
+    localparam INIT     = 3'b001;
+    localparam SEND     = 3'b010;
+    localparam WAIT     = 3'b100;
+    localparam isINIT   = 0;
+    localparam isSEND   = 1;
+    localparam isWAIT   = 2;
+
+// ADEF (EXP13)
+    /*********************************************************
+        detect ADEF in pre-IF
+        not set adef_ex until the wrong pc go to IF stage
+    *********************************************************/
+    reg     has_adef;
+    wire    preIF_has_adef;
+    assign  preIF_has_adef  = pc_next[1:0] != 2'b0;
+
+    always@(posedge clk)
+    begin
+        if(reset)
+            has_adef <= 1'b0;
+        else
+            has_adef <= preIF_has_adef;
+    end
+
 // Pre IF
-assign pc_seq                   = pc + 32'h4;
-assign {br_target, br_taken}    = BR_BUS;
-assign pc_next                  = (ertn_flush&except_valid) ? era_pc :
+    assign pc_seq                   = pc + 32'h4;
+    assign {br_target, br_taken}    = BR_BUS;
+    assign pc_next                  = (ertn_flush&except_valid) ? era_pc :
                                     (wb_ex&except_valid) ? ex_entry :
                                     br_taken ? br_target : pc_seq;
 
-// exp13 ADEF
-// detect ADEF when pre-IF
-// not set adef_ex until the wrong pc go to IF stage
-reg has_adef;
-always@(posedge clk)
-begin
-    if(reset)
-        has_adef <= 1'b0;
-    else
-        has_adef <= pc_next[1:0] != 2'b0;
-end
+    assign inst_sram_req            = IF_current[isSEND] & (~reset | (wb_ex&except_valid) | (ertn_flush&except_valid)) & ~preIF_has_adef;
+    assign inst_sram_addr           = pc_next;
+    assign inst_sram_wr             = 0;
+    assign inst_sram_wstrb          = 0;
+    assign inst_sram_wdata          = 0;
+    assign inst_sram_size           = 2'b10;            // 2 means 2^2 = 4 bytes.
+
+    assign preIF_ready_go           = inst_sram_req & inst_sram_addr_ok | preIF_has_adef;
+
+    always @(posedge clk) begin
+        if (reset)
+            preIF_current   <= INIT;
+        else
+            preIF_current   <= preIF_next;
+    end
+
+    always @(*) begin
+        case(preIF_current)
+            INIT:
+                preIF_next  <= SEND;
+            SEND: begin
+                if (!IF_allow_in & preIF_ready_go)
+                    preIF_next  <= WAIT;
+                else
+                    preIF_next  <= SEND;
+            end
+            WAIT: begin
+                if (IF_allow_in)
+                    preIF_next  <= SEND;
+                else
+                    preIF_next  <= WAIT;
+            end
+            default: preIF_next <= INIT;
+        endcase
+    end
+
+    always @(posedge clk) begin
+        if (reset) begin
+            preIF_buf_valid         <= 0;
+            preIF_buf_inst          <= 0;
+        end 
+        else begin
+            if (preIF_current[isSEND])
+                preIF_buf_valid     <= 0;
+            if (preIF_current[isWAIT] & inst_sram_data_ok & ~IF_allow_in) begin
+                preIF_buf_valid     <= 1;
+                preIF_buf_inst      <= inst_sram_rdata;
+            end 
+        end
+    end
 
 // IF
-assign inst_sram_we     = 4'b0;
-assign inst_sram_en     = ID_allow_in & ~reset | (wb_ex&except_valid) | (ertn_flush&except_valid);               // don't need to care about ID_allow_in when wb_ex or ertn_flush
-assign inst_sram_addr   = (ID_allow_in | (wb_ex&except_valid) | (ertn_flush&except_valid)) ? pc_next : pc;       // kind of 'blocking pc (instruction) in IF'.
-assign inst_sram_wdata  = 32'b0;
-assign inst             = inst_sram_rdata;
+    assign IF_ready_go      = inst_sram_data_ok;
+    assign IF_allow_in      = ID_allow_in & IF_ready_go;
+
+    always @(posedge clk) begin
+        if (reset)
+            IF_current      <= INIT;
+        else
+            IF_current      <= IF_next;
+    end
+
+    always @(*) begin
+        case(IF_current)
+            INIT:
+                IF_next     <= SEND;
+            SEND:
+                if (!ID_allow_in & IF_ready_go)
+                    IF_next     <= WAIT;
+                else
+                    IF_next     <= SEND;
+            WAIT:
+                if (ID_allow_in)
+                    IF_next     <= SEND;
+                else
+                    IF_next     <= WAIT;
+            default:
+                IF_next     <= INIT;
+        endcase
+    end
+
+    always @(posedge clk) begin
+        if (reset) begin
+            IF_buf_valid    <= 0;
+            IF_buf_inst     <= 0;
+        end
+        else begin
+            if (IF_current[isSEND])
+                IF_buf_valid    <= 0;
+            if (IF_current[isWAIT] & IF_ready_go & ~ID_allow_in) begin
+                IF_buf_valid    <= 1;
+                IF_buf_inst     <= preIF_buf_valid ? preIF_buf_inst : inst_sram_rdata;
+            end
+        end
+    end
+
+    assign inst     = preIF_buf_valid ? preIF_buf_inst : inst_sram_rdata;
 
 // IF_valid
 always @(posedge clk)
@@ -110,7 +222,5 @@ assign ebus_end = ebus_init | {{15-`EBUS_ADEF{1'b0}}, has_adef, {`EBUS_ADEF{1'b0
 assign IFreg_valid      = IF_valid & ~br_taken & ~(|ebus_end);
 assign IFreg_bus        = {ebus_end, inst, pc};
 
-// control signals
-assign IF_ready_go      = 1'b1;
 
 endmodule
