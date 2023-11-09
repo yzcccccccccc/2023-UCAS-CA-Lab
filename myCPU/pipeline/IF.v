@@ -35,20 +35,31 @@ module IF(
 );
 
 // Signal definitions
-reg     [31:0]  pc;
-wire    [31:0]  pc_next;
-wire    [31:0]  inst;
+    reg     [31:0]  pc;
+    wire    [31:0]  pc_next;
+    wire    [31:0]  inst;
 
-reg     [31:0]  preIF_buf_inst, IF_buf_inst;
-reg             preIF_buf_valid, IF_buf_valid;
+    reg     [31:0]  preIF_buf_inst, IF_buf_inst;
+    reg             preIF_buf_valid, IF_buf_valid;
 
-wire    [31:0]  pc_seq;
-wire    [31:0]  br_target;
-wire            br_taken, br_stall;
+    wire    [31:0]  pc_seq;
+    wire    [31:0]  br_target;
+    wire            br_taken, br_stall;
 
-reg             IF_valid;
-wire            IF_allow_in;
-wire            preIF_ready_go;
+    reg             IF_valid;
+    wire            IF_allow_in;
+    wire            preIF_ready_go;
+
+    wire        ertn_tak;
+    wire        ex_tak;
+    wire        br_tak;
+    wire [31:0] ertn_pc, ex_pc, br_pc;
+
+    reg         preIF_invalid_req;              // whether need to invalid the inst in preIF
+    wire        preIF_cancel, to_IF_valid;
+
+    reg         IF_invalid_req;
+    wire        IF_cancel;
 
 /***************************************************
     Hint:
@@ -101,9 +112,9 @@ end
     reg             ertn_taken_r, ex_taken_r, br_taken_r;
     reg [31:0]      ertn_pc_r, ex_pc_r, br_pc_r;
     always @(posedge clk) begin
-        if (reset | preIF_ready_go & IF_allow_in) begin          // reset after a req has been sent
+        if (reset | preIF_ready_go & IF_allow_in & to_IF_valid) begin          // reset after a req has been sent
             {ertn_taken_r, ertn_pc_r}           <= 0;
-            {ex_taken_r, era_pc_r}              <= 0;
+            {ex_taken_r, ex_pc_r}              <= 0;
             {br_taken_r, br_pc_r}               <= 0;
         end
         else begin
@@ -118,9 +129,6 @@ end
     assign pc_seq                           = pc + 32'h4;
     assign {br_target, br_taken, br_stall}  = BR_BUS;
 
-    wire        ertn_tak, ertn_pc;
-    wire        ex_tak, ex_pc;
-    wire        br_tak, br_pc;
     assign  ertn_tak        = ertn_flush & except_valid | ertn_taken_r;
     assign  ertn_pc         = {32{ertn_flush & except_valid}} & era_pc
                             | {32{ertn_taken_r}} & ertn_pc_r;
@@ -130,105 +138,66 @@ end
     assign  br_tak          = br_taken | br_taken_r;
     assign  br_pc           = {32{br_taken}} & br_target
                             | {32{br_taken_r}} & br_pc_r;
-    assign  pc_next         = ertn_tak ? ertn_pc
-                            : ex_tak ? ex_pc
+
+    assign  pc_next         = ex_tak ? ex_pc
+                            : ertn_tak ? ertn_pc
                             : br_tak ? br_pc
                             : pc_seq;
 
-    assign inst_sram_req            = preIF_current[isSEND] & ~reset & ~preIF_has_adef & ~br_stall;
+    assign inst_sram_req            = ~reset & ~preIF_has_adef & ~br_stall & IF_allow_in;
     assign inst_sram_addr           = pc_next;
     assign inst_sram_wr             = 0;
     assign inst_sram_wstrb          = 0;
     assign inst_sram_wdata          = 0;
     assign inst_sram_size           = 2'b10;            // 2 means 2^2 = 4 bytes.
 
-    assign preIF_ready_go           = inst_sram_req & inst_sram_addr_ok | preIF_has_adef | preIF_current[isWAIT];
+    assign preIF_ready_go           = inst_sram_req & inst_sram_addr_ok | preIF_has_adef;
 
+// to_IF_valid
+    assign preIF_cancel = ertn_flush & except_valid | wb_ex & except_valid | br_taken | preIF_has_adef;
     always @(posedge clk) begin
         if (reset)
-            preIF_current   <= INIT;
+            preIF_invalid_req     <= 0;
         else
-            preIF_current   <= preIF_next;
-    end
-
-    always @(*) begin
-        case(preIF_current)
-            INIT:
-                preIF_next  <= SEND;
-            SEND: begin
-                if (!IF_allow_in & inst_sram_req & inst_sram_addr_ok)
-                    preIF_next  <= WAIT;
-                else
-                    preIF_next  <= SEND;
+            if (preIF_cancel) begin
+                if (preIF_ready_go & ~IF_allow_in)         // addr handshake has succeeded ...
+                    preIF_invalid_req   <= 1;
             end
-            WAIT: begin
-                if (IF_allow_in)
-                    preIF_next  <= SEND;
-                else
-                    preIF_next  <= WAIT;
-            end
-            default: preIF_next <= INIT;
-        endcase
+            else
+                if (preIF_ready_go)
+                    preIF_invalid_req   <= 0;
     end
+    assign to_IF_valid  = preIF_ready_go & ~preIF_invalid_req & ~preIF_cancel;
 
+// IF
+    assign IF_cancel    = ertn_flush & except_valid | wb_ex & except_valid | br_taken;
     always @(posedge clk) begin
-        if (reset) begin
-            preIF_buf_valid         <= 0;
-            preIF_buf_inst          <= 0;
-        end 
+        if (reset)
+            IF_invalid_req  <= 0;
+        else
+            if (IF_cancel) begin
+                IF_invalid_req  <= 1; 
+            end
+            else
+                if (IF_ready_go)
+                    IF_invalid_req  <= 0;
+    end
+
+    reg preIF_has_handshake;
+    always @(posedge clk) begin
+        if (reset)
+            preIF_has_handshake <= 0;
         else begin
-            if (preIF_current[isSEND] | ertn_tak | ex_tak)
-                preIF_buf_valid     <= 0;
-            if (preIF_current[isWAIT] & inst_sram_data_ok & ~IF_allow_in) begin
-                preIF_buf_valid     <= 1;
-                preIF_buf_inst      <= inst_sram_rdata;
-            end 
+            if (inst_sram_req & inst_sram_addr_ok)
+                preIF_has_handshake <= 1;
+            else
+                if (IF_ready_go & ID_allow_in)
+                    preIF_has_handshake <= 0;
         end
     end
 
-// to_IF_valid
-    reg         to_IF_valid;
-    always @(posedge clk) begin
-        if (reset)
-            to_IF_valid     <= 0;
-        else
-            if (preIF_ready_go) begin
-                if (ertn_flush & except_valid | wb_ex & except_valid | br_taken | has_adef)
-                    to_IF_valid     <= 0;
-                else
-                    to_IF_valid     <= 1;
-            end
-    end
-
-// IF
-    assign IF_ready_go      = inst_sram_data_ok | IF_buf_valid;
+    assign IF_ready_go      = inst_sram_data_ok | IF_buf_valid | ~IF_valid & ~preIF_has_handshake;
     assign IF_allow_in      = ID_allow_in & IF_ready_go;
-
-    always @(posedge clk) begin
-        if (reset)
-            IF_current      <= INIT;
-        else
-            IF_current      <= IF_next;
-    end
-
-    always @(*) begin
-        case(IF_current)
-            INIT:
-                IF_next     <= SEND;
-            SEND:
-                if (!ID_allow_in & IF_ready_go)
-                    IF_next     <= WAIT;
-                else
-                    IF_next     <= SEND;
-            WAIT:
-                if (ID_allow_in)
-                    IF_next     <= SEND;
-                else
-                    IF_next     <= WAIT;
-            default:
-                IF_next     <= INIT;
-        endcase
-    end
 
     always @(posedge clk) begin
         if (reset) begin
@@ -236,31 +205,37 @@ end
             IF_buf_inst     <= 0;
         end
         else begin
-            if (IF_current[isSEND])
-                IF_buf_valid    <= 0;
-            if (IF_current[isWAIT] & inst_sram_data_ok & ~ID_allow_in) begin
+            if (IF_ready_go & ~ID_allow_in & ~IF_cancel) begin
                 IF_buf_valid    <= 1;
-                IF_buf_inst     <= preIF_buf_valid ? preIF_buf_inst : inst_sram_rdata;
+                IF_buf_inst     <= inst_sram_rdata;
             end
+            else
+                IF_buf_valid    <= 0;
         end
     end
 
-    assign inst     = IF_buf_valid ? IF_buf_inst : inst_sram_rdata;
+    assign inst     = IF_buf_valid ? IF_buf_inst 
+                    : inst_sram_rdata;
 
 // IF_valid
-always @(posedge clk)
-begin
-    if (reset)
-        IF_valid <= 0;
-    else
-        IF_valid <= 1;
-end
+    always @(posedge clk)
+    begin
+        if (reset)
+            IF_valid <= 0;
+        else begin
+            if (preIF_ready_go & IF_allow_in)
+                IF_valid    <= to_IF_valid;
+            else
+                if (IF_ready_go & ID_allow_in)
+                    IF_valid    <= 0;
+        end
+    end
 
 // exception
-assign ebus_end = ebus_init | {{15-`EBUS_ADEF{1'b0}}, has_adef, {`EBUS_ADEF{1'b0}}} & {16{IF_valid}};
+assign ebus_end = ebus_init | {{15-`EBUS_ADEF{1'b0}}, has_adef, {`EBUS_ADEF{1'b0}}};
 
 // to IFreg_bus
-assign IFreg_valid      = to_IF_valid;
+assign IFreg_valid      = IF_valid & ~IF_cancel & ~IF_invalid_req;
 assign IFreg_bus        = {ebus_end, inst, pc};
 
 

@@ -39,9 +39,9 @@ assign  {EX2MEM_bus, EX2WB_bus} = EXreg_bus;
 wire    [31:0]  mul_result, EX_result, rkd_value;
 wire    [4:0]   ld_ctrl;            // = {inst_ld_w, inst_ld_b, inst_ld_bu, inst_ld_h, inst_ld_hu}
 wire            mul;
-assign  {ebus_init, mul, mul_result, EX_result, rkd_value, ld_ctrl} = EX2MEM_bus;
+wire            wait_data_ok;
+assign  {wait_data_ok, ebus_init, mul, mul_result, EX_result, rkd_value, ld_ctrl} = EX2MEM_bus;
 
-wire            ertn_flush;
 wire [79:0]     csr_ctrl;
 wire            res_from_csr;
 wire            rf_we;
@@ -80,7 +80,7 @@ assign ebus_end = ebus_init;
 
 // control signals
 assign MEM_allow_in         = WB_allow_in & MEM_ready_go;
-assign MEM_ready_go         = data_sram_data_ok;
+assign MEM_ready_go         = (wait_data_ok & valid) ? data_sram_data_ok : 1;
 
 // data harzard bypass
 assign MEM_bypass_bus       = {res_from_csr, rf_waddr, rf_we & valid, MEM_final_result};

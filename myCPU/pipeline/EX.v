@@ -14,11 +14,6 @@ module EX(
     output  wire        EX_ready_go,
 
     // data ram interface
-    output  wire         data_sram_en,
-    output  wire [31:0]  data_sram_addr,
-    output  wire [31:0]  data_sram_wdata,
-    output  wire [3:0]   data_sram_we,
-
     output  wire        data_sram_req,
     output  wire        data_sram_wr,
     output  wire [1:0]  data_sram_size,
@@ -145,7 +140,19 @@ assign has_ale = st_ctrl[1] && alu_result[0]                    ||
                  ld_ctrl[1] && alu_result[0]                    ||
                  ld_ctrl[4] && (alu_result[0] || alu_result[1]);
 
-assign data_sram_req    = mem_en & valid & ~has_ale & ~ertn_cancel & ~st_disable & MEM_allow_in;
+// MEM Access
+reg     cancel_or_diable;
+always @(posedge clk) begin
+    if (EX_ready_go & MEM_allow_in)
+        cancel_or_diable    <= 0;
+    else begin
+        if (ertn_cancel)
+            cancel_or_diable    <= 1;
+        if (st_disable)
+            cancel_or_diable    <= 1;
+    end
+end
+assign data_sram_req    = mem_en & valid & ~has_ale & MEM_allow_in & ~(cancel_or_diable | ertn_cancel | st_disable);
 assign data_sram_addr   = alu_result;
 assign data_sram_size   = {2{st_ctrl[2] | ld_ctrl[4]}} & 2'd2
                         | {2{st_ctrl[1] | ld_ctrl[1] | ld_ctrl[0]}} & 2'd1
@@ -169,9 +176,11 @@ always @(posedge clk) begin
         if (reset)
             has_reset   <= 1;
 end
+wire    wait_data_ok;
+assign wait_data_ok     = data_sram_req;
 assign EXreg_valid      = valid & ~(reset | has_reset);
-assign EXreg_2MEM       = {ebus_end, mul, mul_result, EX_result, rkd_value, ld_ctrl};
-assign EXreg_2WB        = {ertn_flush, csr_ctrl, res_from_csr, rf_we, EX_res_from_mem, rf_waddr, pc};
+assign EXreg_2MEM       = {wait_data_ok, ebus_end, mul, mul_result, EX_result, rkd_value, ld_ctrl};
+assign EXreg_2WB        = {ertn_flush & EXreg_valid, csr_ctrl, res_from_csr, rf_we, EX_res_from_mem, rf_waddr, pc};
 assign EXreg_bus        = {EXreg_2MEM, EXreg_2WB};
 
 // Data Harzard Bypass

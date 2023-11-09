@@ -32,7 +32,8 @@ module WB(
            output wire [79:0] csr_ctrl,
            output wire [`WB2CSR_LEN-1:0] to_csr_in_bus,
 
-           output wire ertn_flush
+           output wire ertn_flush,
+           output wire excep_valid
        );
 
 // to CSR
@@ -40,7 +41,6 @@ wire wb_ex;
 wire [31:0] wb_pc;
 wire [5:0] wb_ecode;
 wire [8:0] wb_esubcode;
-wire ertn_flush;
 
 // ebus
 wire [15:0] ebus_init;
@@ -65,7 +65,8 @@ assign debug_wb_rf_wnum     = rf_waddr;
 assign debug_wb_rf_we       = {4{rf_we}};
 
 // exception
-assign ebus_end = ebus_init;
+assign ebus_end     = ebus_init;
+assign excep_valid  = valid | ebus_end[`EBUS_ADEF];
 
 // exp13 adef
 wire [31:0] wb_vaddr;
@@ -98,6 +99,6 @@ assign wb_ecode =  {6{ebus_end[`EBUS_INT]}} & `ECODE_INT |
                    {6{ebus_end[`EBUS_FPE]}} & `ECODE_FPE |
                    {6{ebus_end[`EBUS_TLBR]}} & `ECODE_TLBR;
 assign wb_esubcode = {9{ebus_end[7]}} & `ESUBCODE_ADEM;
-assign to_csr_in_bus = {ertn_flush, wb_ex, wb_ecode, wb_esubcode, wb_pc, wb_vaddr};
+assign to_csr_in_bus = {ertn_flush&valid, wb_ex, wb_ecode, wb_esubcode, wb_pc, wb_vaddr};
 
 endmodule

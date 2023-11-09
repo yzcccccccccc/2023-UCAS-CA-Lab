@@ -7,9 +7,9 @@
 `define ID2WB_LEN       121     /* ID2WB    = {ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc} */
 `define IDReg_BUS_LEN   258     /* = {ID2EX, ID2MEM, ID2WB} */
 
-`define EX2MEM_LEN      118     /* EX2MEM   = {ebus_end, mul, mul_result, EX_result, rdk_value, ld_ctrl}*/
+`define EX2MEM_LEN      119     /* EX2MEM   = {wait_data_ok, ebus_end, mul, mul_result, EX_result, rdk_value, ld_ctrl}*/
 `define EX2WB_LEN       121
-`define EXReg_BUS_LEN   239     /* = {EXreg_2MEM, EXreg_2WB}; */
+`define EXReg_BUS_LEN   240     /* = {EXreg_2MEM, EXreg_2WB}; */
 
 `define MEMReg_BUS_LEN  168     /* MEM2WB  = {ebus_end, ertn_flush, csr_ctrl, res_from_csr, MEM_final_result, rf_we, rf_waddr, pc}*/
 

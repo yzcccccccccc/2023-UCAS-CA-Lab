@@ -154,6 +154,7 @@ data_harzard_detector u_dhd(
                       );
 
 // store when exception occur in EX/MEM/WB
+wire excep_valid;
 wire ex_ex = | EXreg_bus[238:223];
 wire mem_ex = | MEMreg_bus[167:152];
 wire st_disable = ex_ex | mem_ex | wb_ex;
@@ -170,11 +171,16 @@ wire st_disable = ex_ex | mem_ex | wb_ex;
 IF  u_IF(
         .clk(clk),
         .reset(reset),
-        .inst_sram_we(inst_sram_we),
-        .inst_sram_en(inst_sram_en),
+        .inst_sram_req(inst_sram_req),
+        .inst_sram_wr(inst_sram_wr),
+        .inst_sram_size(inst_sram_size),
         .inst_sram_addr(inst_sram_addr),
+        .inst_sram_wstrb(inst_sram_wstrb),
         .inst_sram_wdata(inst_sram_wdata),
+        .inst_sram_addr_ok(inst_sram_addr_ok),
+        .inst_sram_data_ok(inst_sram_data_ok),
         .inst_sram_rdata(inst_sram_rdata),
+
         .IF_ready_go(IF_ready_go),
         .ID_allow_in(ID_allow_in),
 
@@ -182,7 +188,7 @@ IF  u_IF(
         .IFreg_bus(IFreg_bus),
         .BR_BUS(BR_BUS),
 
-        .except_valid(MEMreg_valid),
+        .except_valid(excep_valid),
         .wb_ex(wb_ex),
         .ex_entry(ex_entry),
         .ertn_flush(ertn_flush),
@@ -228,10 +234,15 @@ EX  u_EX(
         .MEM_allow_in(MEM_allow_in),
         .EX_allow_in(EX_allow_in),
         .EX_ready_go(EX_ready_go),
-        .data_sram_en(data_sram_en),
+
+        .data_sram_req(data_sram_req),
+        .data_sram_wr(data_sram_wr),
+        .data_sram_size(data_sram_size),
         .data_sram_addr(data_sram_addr),
+        .data_sram_wstrb(data_sram_wstrb),
         .data_sram_wdata(data_sram_wdata),
-        .data_sram_we(data_sram_we),
+        .data_sram_addr_ok(data_sram_addr_ok),
+
         .EX_bypass_bus(EX_bypass_bus),
 
         .EXreg_valid(toEXreg_valid_bus),
@@ -252,12 +263,13 @@ MEM u_MEM(
         .valid(EXreg_valid),
         /***************************************************
             Hint:
-            EXreg_bus[`EXReg_BUS_LEN-18:`EXReg_BUS_LEN-49] is
+            EXreg_bus[`EXReg_BUS_LEN-19:`EXReg_BUS_LEN-50] is
             the result of multiplier.
             directly from EX stage.
             Kinda like mul for 2 clks.
         ****************************************************/
-        .EXreg_bus({EXreg[`EXReg_BUS_LEN-1:`EXReg_BUS_LEN-17],EXreg_bus[`EXReg_BUS_LEN-18:`EXReg_BUS_LEN-49],EXreg[`EXReg_BUS_LEN-50:0]}),
+        .EXreg_bus({EXreg[`EXReg_BUS_LEN-1:`EXReg_BUS_LEN-18],EXreg_bus[`EXReg_BUS_LEN-19:`EXReg_BUS_LEN-50],EXreg[`EXReg_BUS_LEN-51:0]}),
+        .data_sram_data_ok(data_sram_data_ok),
         .data_sram_rdata(data_sram_rdata),
         .EX_ready_go(EX_ready_go),
         .WB_allow_in(WB_allow_in),
@@ -289,7 +301,8 @@ WB  u_WB(
         .csr_ctrl(csr_ctrl),
         .csr_rvalue(csr_rvalue),
         .to_csr_in_bus(CSR_in_bus),
-        .ertn_flush(WB_ertn)
+        .ertn_flush(WB_ertn),
+        .excep_valid(excep_valid)
     );
 assign wb_ex = CSR_in_bus[79];
 assign ertn_flush = CSR_in_bus[80];
