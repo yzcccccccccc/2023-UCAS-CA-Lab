@@ -70,6 +70,11 @@ wire [15:0] ebus_init = 16'b0;
 wire [15:0] ebus_end;
 
 // PC
+reg [31:0]  addr_r;         // record the addr that have shaked hand for.
+always @(posedge clk) begin
+    addr_r  <= inst_sram_addr;
+end
+
 always @(posedge clk)
 begin
     if (reset)
@@ -79,20 +84,12 @@ begin
             pc <= pc_next;
 end
 
-// FSM control
-    reg [2:0]   preIF_current, preIF_next, IF_current, IF_next;
-
-    localparam INIT     = 3'b001;
-    localparam SEND     = 3'b010;
-    localparam WAIT     = 3'b100;
-    localparam isINIT   = 0;
-    localparam isSEND   = 1;
-    localparam isWAIT   = 2;
-
 // ADEF (EXP13)
     /*********************************************************
         detect ADEF in pre-IF
         not set adef_ex until the wrong pc go to IF stage
+    2023.11.10 yzcc
+        has_adef is for IF stage
     *********************************************************/
     reg     has_adef;
     wire    preIF_has_adef;
@@ -107,14 +104,31 @@ end
                 has_adef <= preIF_has_adef;
     end
 
-// Pre IF
-    reg             ertn_valid, ex_valid, br_valid;
+//------------------------------------------------------preIF------------------------------------------------------
+    /***********************************************************
+    2023.11.10 yzcc
+        These regs are used for storing PCs when facing cancel
+    situation. The reason of using regs is that these signals
+    can only exist for 1 clock.
+    ***********************************************************/
     reg             ertn_taken_r, ex_taken_r, br_taken_r;
     reg [31:0]      ertn_pc_r, ex_pc_r, br_pc_r;
     always @(posedge clk) begin
-        if (reset | preIF_ready_go & IF_allow_in & to_IF_valid) begin          // reset after a req has been sent
+        /******************************************************
+        2023.11.10 yzcc
+            When to reset?
+            1. reset signal
+            2. preIF has handshake and a valid inst is gonna
+            IF. (Since there can be a situation: ertn/ex/br 
+            arrives, and at the same time shake hands. In this
+            situation we need to hold the flush signals.)
+            3. ADEF is fucking different. ADEF is also the
+            result of flush signals, so we also reset the regs
+            when encountering ADEF.
+        ******************************************************/
+        if (reset | preIF_ready_go & IF_allow_in & (to_IF_valid | preIF_has_adef)) begin          // reset after a req has been sent
             {ertn_taken_r, ertn_pc_r}           <= 0;
-            {ex_taken_r, ex_pc_r}              <= 0;
+            {ex_taken_r, ex_pc_r}               <= 0;
             {br_taken_r, br_pc_r}               <= 0;
         end
         else begin
@@ -144,13 +158,25 @@ end
                             : br_tak ? br_pc
                             : pc_seq;
 
-    assign inst_sram_req            = ~reset & ~preIF_has_adef & ~br_stall & IF_allow_in;
+    /*************************************************************
+    2023.11.10 yzcc
+        About inst_sram_req:
+        1. only pull up when IF is ready to accept (IF_allow_in).
+        2. ADEF will not pull up a request.
+    **************************************************************/
+    assign inst_sram_req            = ~reset & ~br_stall & IF_allow_in & ~preIF_has_adef;
     assign inst_sram_addr           = pc_next;
     assign inst_sram_wr             = 0;
     assign inst_sram_wstrb          = 0;
     assign inst_sram_wdata          = 0;
     assign inst_sram_size           = 2'b10;            // 2 means 2^2 = 4 bytes.
-
+    
+    /***********************************************************
+    2023.11.10 yzcc
+        About preIF_ready_go:
+        1. successfully shake hands
+        2. ADEF
+    ************************************************************/
     assign preIF_ready_go           = inst_sram_req & inst_sram_addr_ok | preIF_has_adef;
 
 // to_IF_valid
@@ -169,8 +195,13 @@ end
     end
     assign to_IF_valid  = preIF_ready_go & ~preIF_invalid_req & ~preIF_cancel;
 
-// IF
-    assign IF_cancel    = ertn_flush & except_valid | wb_ex & except_valid | br_taken;
+//------------------------------------------------------IF------------------------------------------------------
+    assign IF_cancel    = (ertn_flush & except_valid | wb_ex & except_valid | br_taken);
+    /*****************************************************************
+    2023.11.10 yzcc
+        IF_cancel may only last for 1 clk, so we need to use a reg to
+    record it. (IF_invalid_req)
+    *****************************************************************/
     always @(posedge clk) begin
         if (reset)
             IF_invalid_req  <= 0;
@@ -196,16 +227,31 @@ end
         end
     end
 
-    assign IF_ready_go      = inst_sram_data_ok | IF_buf_valid | ~IF_valid & ~preIF_has_handshake;
+    /*****************************************************************
+    2023.11.10 yzcc
+        About IF_ready_go:
+        1. Have acquired the data (data_ok or IF_buf_valid).
+        2. PC in IF stage is invalid and haven't shakehands for addr.
+        (In other words, once you have successfully shaked hands for 
+        addr, you need to wait for data_ok.)
+    *****************************************************************/
+    assign IF_ready_go      = inst_sram_data_ok | IF_buf_valid | ~IFreg_valid & ~preIF_has_handshake;
     assign IF_allow_in      = ID_allow_in & IF_ready_go;
-
+    
+    /*******************************************************************
+    2023.11.10 yzcc
+        The bullshit design book said that 'need to clear IF_buf_valid 
+    when a cancel arrives', but in our design, IF_buf_valid only marks
+    whether there is a inst in IF_buf (no matter valid or invalid). We
+    control the valid signal through IFreg_valid.
+    ********************************************************************/
     always @(posedge clk) begin
         if (reset) begin
             IF_buf_valid    <= 0;
             IF_buf_inst     <= 0;
         end
         else begin
-            if (IF_ready_go & ~ID_allow_in & ~IF_cancel) begin
+            if (IF_ready_go & ~ID_allow_in) begin
                 IF_buf_valid    <= 1;
                 IF_buf_inst     <= inst_sram_rdata;
             end
@@ -218,6 +264,13 @@ end
                     : inst_sram_rdata;
 
 // IF_valid
+    /***********************************************************
+    2023.11.10 yzcc
+        Update IF_valid when preIF is ready to push a PC into
+    IF stage. Pay attention that IF_valid only stands for part
+    of the validity of the PC(or inst) in IF stage, because
+    IF_cancel will also affect the validity when pushing to ID.
+    ************************************************************/
     always @(posedge clk)
     begin
         if (reset)
@@ -232,7 +285,7 @@ end
     end
 
 // exception
-assign ebus_end = ebus_init | {{15-`EBUS_ADEF{1'b0}}, has_adef, {`EBUS_ADEF{1'b0}}};
+assign ebus_end = ebus_init | {{15-`EBUS_ADEF{1'b0}}, has_adef & preIF_has_adef, {`EBUS_ADEF{1'b0}}};
 
 // to IFreg_bus
 assign IFreg_valid      = IF_valid & ~IF_cancel & ~IF_invalid_req;

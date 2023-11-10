@@ -111,6 +111,9 @@ regfile u_regfile(
             .wdata(rf_wdata)
         );
 
+// Exception
+    wire    wb_ex, ertn_flush;
+
 // CSR
 wire [79:0] csr_ctrl;
 wire [31:0] csr_rvalue;
@@ -141,6 +144,7 @@ wire    [31:0]  addr1_forward, addr2_forward;
 wire            pause, addr1_occur, addr2_occur;
 
 data_harzard_detector u_dhd(
+                          .reset(reset || wb_ex || ertn_flush),
                           .rf_raddr1(rf_raddr1),
                           .rf_raddr2(rf_raddr2),
                           .EX_bypass_bus(EX_bypass_bus),
