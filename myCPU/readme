@@ -24,28 +24,34 @@
     3.上板通过了
 
 ############################################
-        exp14
+        exp14 & exp15 & exp16
 ############################################
-2023.11.6
-[info]:
-    修改/myCPU的文件层级结构。
-./myCPU
-├── functional_part
-│   ├── alu.v
-│   ├── csr.v
-│   ├── data_harzard_detector.v
-│   ├── divider.v
-│   ├── multiplier.v
-│   ├── regfile.v
-│   └── tools.v
-├── macro.vh
-├── mmu
-├── mycpu_top.v
-├── pipeline
-│   ├── EX.v
-│   ├── ID.v
-│   ├── IF.v
-│   ├── MEM.v
-│   └── WB.v
-└── readme
-    mmu目录设想是用来放访存相关的，最终会有一个mmu_top.v，然后包含TLB、AXI转接桥等等。
+2023.11.11
+[info]
+    1.修改了myCPU的目录结构：
+        myCPU
+        ├── arith
+        │   ├── alu.v
+        │   ├── divider.v
+        │   └── multiplier.v
+        ├── csr
+        │   └── csr.v
+        ├── dhd
+        │   └── data_harzard_detector.v
+        ├── macro.vh
+        ├── mmu
+        │   ├── AXI_convert.v
+        │   └── tlb.v
+        ├── mycpu_top.v
+        ├── pipeline
+        │   ├── EX.v
+        │   ├── ID.v
+        │   ├── IF.v
+        │   ├── MEM.v
+        │   └── WB.v
+        ├── readme
+        ├── regfile
+        │   └── regfile.v
+        └── tools.v
+    2. AXI_convert：输入为SRAM信号，输出为AXI信号，最后在myCPU的顶层输出AXI信号，myCPU内例化AXI_convert.
+    3. exp14以一种及其丑陋的形式（似乎）跑过了，上板试了好几组随机种子暂时没问题，不保证后续不出错）
