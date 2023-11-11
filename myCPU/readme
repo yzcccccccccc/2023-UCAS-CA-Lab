@@ -55,3 +55,4 @@
         └── tools.v
     2. AXI_convert：输入为SRAM信号，输出为AXI信号，最后在myCPU的顶层输出AXI信号，myCPU内例化AXI_convert.
     3. exp14以一种及其丑陋的形式（似乎）跑过了，上板试了好几组随机种子暂时没问题，不保证后续不出错）
+    4. 例外优先级没写
