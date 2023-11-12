@@ -1,4 +1,4 @@
-`include "macro.vh"
+`include "../macro.vh"
 
 module ID(
            input   wire        clk,
@@ -422,10 +422,11 @@ assign rdcntv_op = {inst_rdcntvh_w, inst_rdcntvl_w};
 
 // exception
 assign has_sys = inst_syscall;
-assign ebus_end = ebus_init | ({{15-`EBUS_SYS{1'b0}}, has_sys, {`EBUS_SYS{1'b0}}}
-                             | {{15-`EBUS_INE{1'b0}}, has_ine, {`EBUS_INE{1'b0}}}
-                             | {{15-`EBUS_BRK{1'b0}}, has_brk, {`EBUS_BRK{1'b0}}}
-                             | {{15-`EBUS_INT{1'b0}}, has_int, {`EBUS_INT{1'b0}}}) & {16{valid}};
+assign ebus_end = (has_int & valid) ? {{15-`EBUS_INT{1'b0}}, has_int, {`EBUS_INT{1'b0}}}
+              : (|ebus_init) ? ebus_init
+              : ({{15-`EBUS_SYS{1'b0}}, has_sys, {`EBUS_SYS{1'b0}}}
+              | {{15-`EBUS_INE{1'b0}}, has_ine, {`EBUS_INE{1'b0}}}
+              | {{15-`EBUS_BRK{1'b0}}, has_brk, {`EBUS_BRK{1'b0}}});
 assign ertn_flush = inst_ertn;
 
 // exp13 ine
@@ -462,6 +463,15 @@ assign ID_ready_go      = ~pause;
 assign ID_allow_in      = EX_allow_in & ID_ready_go;
 
 // BR_BUS
-assign BR_BUS       = {br_target, br_taken, br_stall};
+// br_taken_last is used to ensure that br_taken only duration 1 clock
+reg br_taken_last;
+always@(posedge clk)
+begin
+    if(reset)
+       br_taken_last <= 1'b0;
+    else
+       br_taken_last <= br_taken;
+end
+assign BR_BUS       = {br_target, br_taken & ~br_taken_last, br_stall};
 
 endmodule

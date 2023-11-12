@@ -1,4 +1,4 @@
-`include "macro.vh"
+`include "../macro.vh"
 module MEM(
        input   wire        clk,
        input   wire        reset,
@@ -86,7 +86,7 @@ assign MEM_ready_go         = (wait_data_ok & valid) ? data_sram_data_ok : 1;
 assign MEM_bypass_bus       = {res_from_csr, rf_waddr, rf_we & valid, MEM_final_result};
 
 // MEMreg_bus
-assign MEMreg_valid         = valid | ebus_end[`EBUS_ADEF];
+assign MEMreg_valid         = valid;
 assign MEMreg_bus           = {ebus_end, ertn_flush, csr_ctrl, res_from_csr, MEM_final_result, rf_we, rf_waddr, pc};
 
 endmodule

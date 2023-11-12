@@ -1,4 +1,4 @@
-`include "macro.vh"
+`include "../macro.vh"
 
 module data_harzard_detector(
        input   wire                            reset,

@@ -1,4 +1,4 @@
-`include "macro.vh"
+`include "../macro.vh"
 
 module WB(
            input   wire        clk,
@@ -80,7 +80,7 @@ assign WB_ready_go          = 1;
 assign WB_allow_in          = 1;
 
 // CSR
-assign wb_ex = |ebus_end;
+assign wb_ex = |ebus_end &valid;
 assign wb_pc = pc;
 assign wb_ecode =  {6{ebus_end[`EBUS_INT]}} & `ECODE_INT |
                    {6{ebus_end[`EBUS_PIL]}} & `ECODE_PIL |

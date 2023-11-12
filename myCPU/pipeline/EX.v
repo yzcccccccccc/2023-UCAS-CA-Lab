@@ -1,4 +1,4 @@
-`include "macro.vh"
+`include "../macro.vh"
 module EX(
     input   wire        clk,
     input   wire        reset,
@@ -152,7 +152,7 @@ always @(posedge clk) begin
             cancel_or_diable    <= 1;
     end
 end
-assign data_sram_req    = mem_en & valid & ~has_ale & MEM_allow_in & ~(cancel_or_diable | ertn_cancel | st_disable);
+assign data_sram_req    = mem_en & valid & ~has_ale & MEM_allow_in & ~(cancel_or_diable | ertn_cancel | st_disable) & ~(|ebus_init);
 assign data_sram_addr   = alu_result;
 assign data_sram_size   = {2{st_ctrl[2] | ld_ctrl[4]}} & 2'd2
                         | {2{st_ctrl[1] | ld_ctrl[1] | ld_ctrl[0]}} & 2'd1
@@ -165,7 +165,8 @@ assign data_sram_wstrb  = mem_we & {4{valid}};
 assign res_from_rdcntv = |rdcntv_op;
 
 // exception
-assign ebus_end = ebus_init | {{15-`EBUS_ALE{1'b0}}, has_ale, {`EBUS_ALE{1'b0}}} & {16{valid}};
+assign ebus_end = (|ebus_init) ? ebus_init
+              : {{15-`EBUS_ALE{1'b0}}, has_ale, {`EBUS_ALE{1'b0}}} & {16{valid}};
 
 // EXreg_bus
 reg     has_reset;
