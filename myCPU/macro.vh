@@ -4,19 +4,19 @@
 
 `define ID2EX_LEN       96      /* ID2EX    = {rdcntv_op, ebus_end, alu_op, alu_src1, alu_src2, mul, div} */
 `define ID2MEM_LEN      41      /* ID2MEM   = {rkd_value, mem_en, st_ctrl, ld_ctrl} */
-`define ID2WB_LEN       121     /* ID2WB    = {ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc} */
-`define IDReg_BUS_LEN   258     /* = {ID2EX, ID2MEM, ID2WB} */
+`define ID2WB_LEN       122     /* ID2WB    = {pause_int_detect, ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc} */
+`define IDReg_BUS_LEN   259     /* = {ID2EX, ID2MEM, ID2WB} */
 
 `define EX2MEM_LEN      119     /* EX2MEM   = {wait_data_ok, ebus_end, mul, mul_result, EX_result, rdk_value, ld_ctrl}*/
-`define EX2WB_LEN       121
-`define EXReg_BUS_LEN   240     /* = {EXreg_2MEM, EXreg_2WB}; */
+`define EX2WB_LEN       122
+`define EXReg_BUS_LEN   241     /* = {EXreg_2MEM, EXreg_2WB}; */
 
-`define MEMReg_BUS_LEN  168     /* MEM2WB  = {ebus_end, ertn_flush, csr_ctrl, res_from_csr, MEM_final_result, rf_we, rf_waddr, pc}*/
+`define MEMReg_BUS_LEN  169     /* MEM2WB  = {pause_int_detect, ebus_end, ertn_flush, csr_ctrl, res_from_csr, MEM_final_result, rf_we, rf_waddr, pc}*/
 
 // Data Forward Bypass
-`define EX_BYPASS_LEN   41
-`define MEM_BYPASS_LEN  39
-`define WB_BYPASS_LEN   39
+`define EX_BYPASS_LEN   42
+`define MEM_BYPASS_LEN  40
+`define WB_BYPASS_LEN   40
 
 // CSR ADDR
 `define CSR_CRMD        14'h00

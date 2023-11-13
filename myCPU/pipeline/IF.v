@@ -131,24 +131,6 @@ module IF(
     reg             ertn_taken_r, ex_taken_r, br_taken_r;
     reg [31:0]      ertn_pc_r, ex_pc_r, br_pc_r;
     always @(posedge clk) begin
-        // Old
-        // /******************************************************
-        // 2023.11.10 yzcc
-        //     When to reset?
-        //     1. reset signal
-        //     2. preIF has handshake and a valid inst is gonna
-        //     IF. (Since there can be a situation: ertn/ex/br 
-        //     arrives, and at the same time shake hands. In this
-        //     situation we need to hold the flush signals.)
-        //     3. ADEF is fucking different. ADEF is also the
-        //     result of flush signals, so we also reset the regs
-        //     when encountering ADEF.
-        // ******************************************************/
-        // if (reset | preIF_ready_go & IF_allow_in & (to_IF_valid | preIF_has_adef)) begin          // reset after a req has been sent
-        //     {ertn_taken_r, ertn_pc_r}           <= 0;
-        //     {ex_taken_r, ex_pc_r}               <= 0;
-        //     {br_taken_r, br_pc_r}               <= 0;
-        // end
         /******************************************************
         2023.11.12 czxx
             When to reset?
@@ -202,15 +184,6 @@ module IF(
     assign inst_sram_size           = 2'b10;            // 2 means 2^2 = 4 bytes.
 
 //------------------------------------------------------IF------------------------------------------------------
-    // Old
-    /*****************************************************************
-    2023.11.10 yzcc
-        About IF_ready_go:
-        1. Have acquired the data (data_ok or IF_buf_valid).
-        2. PC in IF stage is invalid and haven't shakehands for addr.
-        (In other words, once you have successfully shaked hands for 
-        addr, you need to wait for data_ok.)
-    *****************************************************************/
     /*****************************************************************
     2023.11.12 czxx
         About IF_ready_go:
@@ -303,16 +276,10 @@ module IF(
 
     // IF_buf
     /*******************************************************************
-    2023.11.10 yzcc
-        The bullshit design book said that 'need to clear IF_buf_valid 
-    when a cancel arrives', but in our design, IF_buf_valid only marks
-    whether there is a inst in IF_buf (no matter valid or invalid). We
-    control the valid signal through IFreg_valid.
-    ********************************************************************/
-    /*******************************************************************
     2023.11.12 czxx
         IF_buf is used to store inst temporarily when:
-      we should receive rdata from inst ram
+      current inst is valid
+    & we should receive rdata from inst ram
     & data_ok
     & couldn't enter ID stage immediately
     ********************************************************************/
@@ -322,7 +289,7 @@ module IF(
             IF_buf_inst     <= 0;
         end
         else begin
-            if (recv_inst_from_sram & inst_sram_data_ok & ~(IF_ready_go & ID_allow_in)) begin
+            if (IFreg_valid & recv_inst_from_sram & inst_sram_data_ok & ~(IF_ready_go & ID_allow_in)) begin
                 IF_buf_valid    <= 1;
                 IF_buf_inst     <= inst_sram_rdata;
             end

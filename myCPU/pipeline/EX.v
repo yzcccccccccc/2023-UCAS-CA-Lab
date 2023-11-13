@@ -64,9 +64,10 @@ wire    [31:0]  rkd_value;
 wire    [2:0]   st_ctrl;            // = {inst_st_w, inst_st_h, inst_st_b}
 wire    [4:0]   ld_ctrl;
 
-wire ertn_flush;
+wire            ertn_flush;
 wire [79:0]     csr_ctrl;
-wire res_from_csr;
+wire            pause_int_detect;
+wire            res_from_csr;
 wire            rf_we;
 wire            res_from_mem;
 wire    [4:0]   rf_waddr;
@@ -76,7 +77,7 @@ wire       res_from_rdcntv;
 
 assign  {rdcntv_op, ebus_init, alu_op, alu_src1, alu_src2, mul, div}      = ID2EX_bus;
 assign  {rkd_value, mem_en, st_ctrl, ld_ctrl}       = ID2MEM_bus;
-assign  {ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc}         = ID2WB_bus;
+assign  {pause_int_detect, ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc}         = ID2WB_bus;
 
 // Define Signals
 wire [31:0]         alu_result;
@@ -177,11 +178,11 @@ always @(posedge clk) begin
         if (reset)
             has_reset   <= 1;
 end
-wire    wait_data_ok;
+wire   wait_data_ok;
 assign wait_data_ok     = data_sram_req;
 assign EXreg_valid      = valid & ~(reset | has_reset);
 assign EXreg_2MEM       = {wait_data_ok, ebus_end, mul, mul_result, EX_result, rkd_value, ld_ctrl};
-assign EXreg_2WB        = {ertn_flush & EXreg_valid, csr_ctrl, res_from_csr, rf_we, EX_res_from_mem, rf_waddr, pc};
+assign EXreg_2WB        = {pause_int_detect, ertn_flush & EXreg_valid, csr_ctrl, res_from_csr, rf_we, EX_res_from_mem, rf_waddr, pc};
 assign EXreg_bus        = {EXreg_2MEM, EXreg_2WB};
 
 // Data Harzard Bypass
@@ -192,12 +193,12 @@ assign  EX_result           =   div ? div_result :
                                 res_from_rdcntv ? counter_value :
                                 alu_result;
 
-assign  EX_bypass_bus       = {res_from_csr, EX_rf_waddr, EX_rf_we, mul, EX_res_from_mem, EX_result};
+assign  EX_bypass_bus       = {pause_int_detect & EXreg_valid, res_from_csr, EX_rf_waddr, EX_rf_we, mul, EX_res_from_mem, EX_result};
 
 // control signals
 assign EX_ready_go      = (div & valid) ? div_done
                         : data_sram_req ? data_sram_addr_ok
                         : 1;
-assign EX_allow_in      = MEM_allow_in & EX_ready_go;
+assign EX_allow_in      = !EXreg_valid | MEM_allow_in & EX_ready_go;
 
 endmodule

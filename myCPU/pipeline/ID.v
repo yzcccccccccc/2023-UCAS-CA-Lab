@@ -59,6 +59,7 @@ wire        csr_re, csr_we;
 wire [13:0] csr_num;
 wire [31:0] csr_wvalue, csr_wmask;
 wire [79:0] csr_ctrl;
+wire        pause_int_detect;
 
 // stable counter
 wire [ 1:0] rdcntv_op;               // = {inst_rdcntvh_w,inst_rdcntvl_w}
@@ -416,6 +417,11 @@ assign csr_wvalue   = rkd_value;
 assign csr_wmask    = inst_csrxchg ? rj_value : {32{1'b1}};
 assign csr_ctrl = {csr_num, csr_re, csr_we, csr_wvalue, csr_wmask};
 assign res_from_csr = inst_csrrd | inst_csrxchg | inst_csrwr | inst_rdcntid;
+assign pause_int_detect = csr_we & (csr_num==`CSR_CRMD & csr_wmask[`CSR_CRMD_IE]
+                                   |csr_num==`CSR_ECFG & |(csr_wmask[`CSR_ECFG_LIE]&13'h1bff)
+                                   |csr_num==`CSR_ESTAT & |csr_wmask[`CSR_ESTAT_IS10]
+                                   |csr_num==`CSR_TCFG & csr_wmask[`CSR_TCFG_EN]
+                                   |csr_num==`CSR_TICLR & csr_wmask[`CSR_TICLR_CLR]);
 
 // time counter
 assign rdcntv_op = {inst_rdcntvh_w, inst_rdcntvl_w};
@@ -454,13 +460,13 @@ wire    [`ID2WB_LEN - 1:0]  IDreg_2WB;
 assign IDreg_valid      = valid;
 assign IDreg_2EX        = {rdcntv_op, ebus_end, alu_op, alu_src1, alu_src2, mul, div};
 assign IDreg_2MEM       = {rkd_value, mem_en, st_ctrl, ld_ctrl};
-assign IDreg_2WB        = {ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc};
+assign IDreg_2WB        = {pause_int_detect, ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc};
 
 assign IDreg_bus        = {IDreg_2EX, IDreg_2MEM, IDreg_2WB};
 
 // control signals
 assign ID_ready_go      = ~pause;
-assign ID_allow_in      = EX_allow_in & ID_ready_go;
+assign ID_allow_in      = ~IDreg_valid | EX_allow_in & ID_ready_go;
 
 // BR_BUS
 // br_taken_last is used to ensure that br_taken only duration 1 clock

@@ -17,19 +17,19 @@ module data_harzard_detector(
 );
 // Bypass-Bus Decode
 wire    [4:0]       EX_rf_waddr;
-wire                EX_res_from_csr, EX_rf_we, EX_mul, EX_res_from_mem;
+wire                EX_pause_int_detect, EX_res_from_csr, EX_rf_we, EX_mul, EX_res_from_mem;
 wire    [31:0]      EX_result;
-assign {EX_res_from_csr, EX_rf_waddr, EX_rf_we, EX_mul, EX_res_from_mem, EX_result}          = EX_bypass_bus;
+assign {EX_pause_int_detect, EX_res_from_csr, EX_rf_waddr, EX_rf_we, EX_mul, EX_res_from_mem, EX_result}          = EX_bypass_bus;
 
 wire    [4:0]       MEM_rf_waddr;
-wire                MEM_res_from_csr, MEM_rf_we, MEM_rfm;
+wire                MEM_pause_int_detect, MEM_res_from_csr, MEM_rf_we, MEM_rfm;
 wire    [31:0]      MEM_final_result;
-assign {MEM_res_from_csr, MEM_rf_waddr, MEM_rf_we, MEM_final_result}    = MEM_bypass_bus;
+assign {MEM_pause_int_detect, MEM_res_from_csr, MEM_rf_waddr, MEM_rf_we, MEM_final_result}    = MEM_bypass_bus;
 
 wire    [4:0]       WB_rf_waddr;
-wire                WB_res_from_csr, WB_rf_we;
+wire                WB_pause_int_detect, WB_res_from_csr, WB_rf_we;
 wire    [31:0]      WB_result;
-assign {WB_res_from_csr, WB_rf_waddr, WB_rf_we, WB_result}   = WB_bypass_bus;
+assign {WB_pause_int_detect, WB_res_from_csr, WB_rf_waddr, WB_rf_we, WB_result}   = WB_bypass_bus;
 
 // detect and forward
 assign addr1_occur  = ((rf_raddr1 == EX_rf_waddr && EX_rf_we == 1'b1)
@@ -55,6 +55,8 @@ assign addr2_forward = (rf_raddr2 == EX_rf_waddr && EX_rf_we == 1'b1) ? EX_resul
                  or WB is a csr-type inst.
 2023.11.10 yzcc
        will not pause if reset arrives (ex or ertn).
+2023.11.13 czxx
+       pause interrupt detection
 **********************************************************************/
 
 assign pause        = ((|rf_raddr1) & EX_rf_we & (EX_mul | EX_res_from_mem | EX_res_from_csr) & (rf_raddr1 == EX_rf_waddr)
@@ -62,6 +64,10 @@ assign pause        = ((|rf_raddr1) & EX_rf_we & (EX_mul | EX_res_from_mem | EX_
        | (|rf_raddr1) & WB_rf_we & (WB_res_from_csr) & (rf_raddr1 == WB_rf_waddr)
        | (|rf_raddr2) & EX_rf_we & (EX_mul | EX_res_from_mem | EX_res_from_csr) & (rf_raddr2 == EX_rf_waddr)
        | (|rf_raddr2) & MEM_rf_we & (MEM_res_from_csr) & (rf_raddr2 == MEM_rf_waddr)
-       | (|rf_raddr2) & WB_rf_we & (WB_res_from_csr) & (rf_raddr2 == WB_rf_waddr)) & ~reset;
+       | (|rf_raddr2) & WB_rf_we & (WB_res_from_csr) & (rf_raddr2 == WB_rf_waddr)
+       | EX_pause_int_detect
+       | MEM_pause_int_detect
+       | WB_pause_int_detect)
+       & ~reset;
 
 endmodule

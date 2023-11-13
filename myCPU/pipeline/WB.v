@@ -51,7 +51,8 @@ wire            res_from_csr;
 wire    [31:0]  final_result, pc;
 wire    [4:0]   rf_waddr_tmp;
 wire            rf_we_tmp;
-assign  {ebus_init, ertn_flush, csr_ctrl, res_from_csr, final_result, rf_we_tmp, rf_waddr_tmp, pc} = MEMreg_bus;
+wire            pause_int_detect;
+assign  {pause_int_detect, ebus_init, ertn_flush, csr_ctrl, res_from_csr, final_result, rf_we_tmp, rf_waddr_tmp, pc} = MEMreg_bus;
 
 // Reg File
 assign  rf_waddr    = rf_waddr_tmp;
@@ -73,14 +74,14 @@ wire [31:0] wb_vaddr;
 assign wb_vaddr = final_result;
 
 // data harzard bypass
-assign WB_bypass_bus    = {res_from_csr, rf_waddr, rf_we, rf_wdata};
+assign WB_bypass_bus    = {pause_int_detect & valid, res_from_csr, rf_waddr, rf_we, rf_wdata};
 
 // control signals
 assign WB_ready_go          = 1;
 assign WB_allow_in          = 1;
 
 // CSR
-assign wb_ex = |ebus_end &valid;
+assign wb_ex = |ebus_end & valid;
 assign wb_pc = pc;
 assign wb_ecode =  {6{ebus_end[`EBUS_INT]}} & `ECODE_INT |
                    {6{ebus_end[`EBUS_PIL]}} & `ECODE_PIL |

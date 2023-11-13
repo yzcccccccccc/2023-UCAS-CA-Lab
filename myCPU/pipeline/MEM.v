@@ -1,6 +1,7 @@
 `include "../macro.vh"
 module MEM(
        input   wire        clk,
+       input   wire        reset_real,
        input   wire        reset,
 
        // valid & EXreg_bus
@@ -8,6 +9,8 @@ module MEM(
        input   wire [`EXReg_BUS_LEN - 1:0] EXreg_bus,
 
        // data mem interface
+       input   wire        data_sram_req,
+       input   wire        data_sram_addr_ok,
        input   wire        data_sram_data_ok,
        input   wire [31:0] data_sram_rdata,
 
@@ -44,17 +47,19 @@ assign  {wait_data_ok, ebus_init, mul, mul_result, EX_result, rkd_value, ld_ctrl
 
 wire [79:0]     csr_ctrl;
 wire            res_from_csr;
+wire            pause_int_detect;
 wire            rf_we;
 wire            res_from_mem;
 wire    [4:0]   rf_waddr;
 wire    [31:0]  pc;
-assign  {ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc} = EX2WB_bus;
+assign  {pause_int_detect, ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc} = EX2WB_bus;
 
 // Define Signals
 wire [31:0]     data;
 wire [31:0]     MEM_result, word_res, byte_res, hword_res;
 wire [31:0]     MEM_final_result;
 wire            is_sign_ext;
+wire            recv_data_from_sram;
 
 // MEM
 assign data                 = data_sram_rdata;
@@ -79,14 +84,40 @@ assign MEM_final_result     = mul ? mul_result :
 assign ebus_end = ebus_init;
 
 // control signals
-assign MEM_allow_in         = WB_allow_in & MEM_ready_go;
-assign MEM_ready_go         = (wait_data_ok & valid) ? data_sram_data_ok : 1;
+assign MEM_allow_in         = ~MEMreg_valid | WB_allow_in & MEM_ready_go;
+assign MEM_ready_go         = (wait_data_ok & valid & recv_data_from_sram) ? data_sram_data_ok : 1;
 
 // data harzard bypass
-assign MEM_bypass_bus       = {res_from_csr, rf_waddr, rf_we & valid, MEM_final_result};
+assign MEM_bypass_bus       = {pause_int_detect & MEMreg_valid, res_from_csr, rf_waddr, rf_we & valid, MEM_final_result};
 
 // MEMreg_bus
-assign MEMreg_valid         = valid;
-assign MEMreg_bus           = {ebus_end, ertn_flush, csr_ctrl, res_from_csr, MEM_final_result, rf_we, rf_waddr, pc};
+reg     has_reset;
+always @(posedge clk) begin
+    if (EX_ready_go & MEM_allow_in)
+        has_reset   <= 0;
+    else
+        if (reset)
+            has_reset   <= 1;
+end
+assign MEMreg_valid         = valid  & ~(reset | has_reset);
+assign MEMreg_bus           = {pause_int_detect, ebus_end, ertn_flush, csr_ctrl, res_from_csr, MEM_final_result, rf_we, rf_waddr, pc};
+
+/*******************************************************************
+2023.11.13 czxx
+    similar to IF stage
+********************************************************************/
+reg [7:0] unfinish_data_cnt;
+always @(posedge clk) begin
+    if (reset_real)
+        unfinish_data_cnt <= 0;
+    else begin
+        if (data_sram_req & data_sram_addr_ok & ~data_sram_data_ok)
+            unfinish_data_cnt <= unfinish_data_cnt+8'b1;
+        else
+            if (~(data_sram_req & data_sram_addr_ok) & data_sram_data_ok)
+                unfinish_data_cnt <= unfinish_data_cnt-8'b1;
+    end
+end
+assign recv_data_from_sram = unfinish_data_cnt==8'b1;
 
 endmodule

@@ -263,6 +263,7 @@ EX  u_EX(
 // MEM
 MEM u_MEM(
         .clk(clk),
+        .reset_real(reset),
         .reset(reset||wb_ex||ertn_flush),
         .valid(EXreg_valid),
         /***************************************************
@@ -273,6 +274,8 @@ MEM u_MEM(
             Kinda like mul for 2 clks.
         ****************************************************/
         .EXreg_bus({EXreg[`EXReg_BUS_LEN-1:`EXReg_BUS_LEN-18],EXreg_bus[`EXReg_BUS_LEN-19:`EXReg_BUS_LEN-50],EXreg[`EXReg_BUS_LEN-51:0]}),
+        .data_sram_req(data_sram_req),
+        .data_sram_addr_ok(data_sram_addr_ok),
         .data_sram_data_ok(data_sram_data_ok),
         .data_sram_rdata(data_sram_rdata),
         .EX_ready_go(EX_ready_go),
