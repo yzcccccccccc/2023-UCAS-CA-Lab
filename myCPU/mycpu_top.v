@@ -1,29 +1,76 @@
 `include "macro.vh"
 module mycpu_top(
-    input   wire        clk,
-    input   wire        resetn,
+    input   wire        aclk,
+    input   wire        aresetn,
 
-    // inst sram interface (SRAM, exp14+)
-    output  wire        inst_sram_req,
-    output  wire        inst_sram_wr,
-    output  wire [1:0]  inst_sram_size,
-    output  wire [31:0] inst_sram_addr,
-    output  wire [3:0]  inst_sram_wstrb,
-    output  wire [31:0] inst_sram_wdata,
-    input   wire        inst_sram_addr_ok,
-    input   wire        inst_sram_data_ok,
-    input   wire [31:0] inst_sram_rdata,
+    // // inst sram interface (SRAM, exp14+)
+    // output  wire        inst_sram_req,
+    // output  wire        inst_sram_wr,
+    // output  wire [1:0]  inst_sram_size,
+    // output  wire [31:0] inst_sram_addr,
+    // output  wire [3:0]  inst_sram_wstrb,
+    // output  wire [31:0] inst_sram_wdata,
+    // input   wire        inst_sram_addr_ok,
+    // input   wire        inst_sram_data_ok,
+    // input   wire [31:0] inst_sram_rdata,
 
-    // data sram interface (SRAM, exp14+)
-    output  wire        data_sram_req,
-    output  wire        data_sram_wr,
-    output  wire [1:0]  data_sram_size,
-    output  wire [31:0] data_sram_addr,
-    output  wire [3:0]  data_sram_wstrb,
-    output  wire [31:0] data_sram_wdata,
-    input   wire        data_sram_addr_ok,
-    input   wire        data_sram_data_ok,
-    input   wire [31:0] data_sram_rdata,
+    // // data sram interface (SRAM, exp14+)
+    // output  wire        data_sram_req,
+    // output  wire        data_sram_wr,
+    // output  wire [1:0]  data_sram_size,
+    // output  wire [31:0] data_sram_addr,
+    // output  wire [3:0]  data_sram_wstrb,
+    // output  wire [31:0] data_sram_wdata,
+    // input   wire        data_sram_addr_ok,
+    // input   wire        data_sram_data_ok,
+    // input   wire [31:0] data_sram_rdata,
+
+    //AXI signals
+    // read-acquire
+    output wire [3:0]  arid,            //fs=0,ld=1
+    output wire [31:0] araddr,
+    output wire [7:0]  arlen,           //always=0
+    output wire [2:0]  arsize,
+    output wire [1:0]  arburst,         //always=2'b01
+    output wire [1:0]  arlock,          //always=0
+    output wire [3:0]  arcache,         //always=0
+    output wire [2:0]  arprot,          //always=0
+    output wire        arvalid,
+    input  wire        arready,
+
+    // read-responce
+    input  wire [3:0]  rid,
+    input  wire [31:0] rdata,
+    input  wire [1:0]  rresp,
+    input  wire        rlast,
+    input  wire        rvalid,
+    output wire        rready,
+
+    // write-acquire
+    output wire [3:0]  awid,            //always=1
+    output wire [31:0] awaddr,
+    output wire [7:0]  awlen,           //always=0
+    output wire [2:0]  awsize,
+    output wire [1:0]  awburst,         //always=2'b01
+    output wire [1:0]  awlock,          //always=0
+    output wire [3:0]  awcache,         //always=0
+    output wire [2:0]  awprot,          //always=0
+    output wire        awvalid,
+    input  wire        awready,
+
+    // write-data
+    output wire [3:0]  wid,             //always=1
+    output wire [31:0] wdata,
+    output wire [3:0]  wstrb,
+    output wire        wlast,           //always=1
+    output wire        wvalid,
+    input  wire        wready,
+
+    // write-responce
+    input  wire [3:0]  bid,
+    input  wire [1:0]  bresp,
+    input  wire        bvalid,
+    output wire        bready,
 
     // trace debug interface
     output  wire [31:0] debug_wb_pc,
@@ -34,16 +81,16 @@ module mycpu_top(
 
 // reset signal
 reg     reset;
-always @(posedge clk)
+always @(posedge aclk)
 begin
-    reset <= ~resetn;
+    reset <= ~aresetn;
 end
 
 // timer (for rdcnt)
     reg [63:0]      timecnt;
     wire [31:0]     counter_value;
     wire [1:0]      rdcntv_op;
-    always @(posedge clk) begin
+    always @(posedge aclk) begin
         if (reset)
             timecnt <= 0;
         else
@@ -101,7 +148,7 @@ wire    [4:0]       rf_raddr1, rf_raddr2, rf_waddr;
 wire    [31:0]      rf_rdata1, rf_rdata2, rf_wdata;
 wire                rf_we;
 regfile u_regfile(
-            .clk(clk),
+            .clk(aclk),
             .raddr1(rf_raddr1),
             .raddr2(rf_raddr2),
             .rdata1(rf_rdata1),
@@ -122,7 +169,7 @@ wire [31:0] era_pc;
 wire has_int;
 
 csr u_csr(
-        .clk(clk),
+        .clk(aclk),
         .reset(reset),
 
         // inst interface
@@ -138,6 +185,89 @@ csr u_csr(
         .era_pc(era_pc),
         .has_int(has_int)
     );
+
+// AXI convert
+wire        inst_sram_req;
+wire        inst_sram_wr;
+wire [1:0]  inst_sram_size;
+wire [31:0] inst_sram_addr;
+wire [3:0]  inst_sram_wstrb;
+wire [31:0] inst_sram_wdata;
+wire        inst_sram_addr_ok;
+wire        inst_sram_data_ok;
+wire [31:0] inst_sram_rdata;
+
+wire        data_sram_req;
+wire        data_sram_wr;
+wire [1:0]  data_sram_size;
+wire [31:0] data_sram_addr;
+wire [3:0]  data_sram_wstrb;
+wire [31:0] data_sram_wdata;
+wire        data_sram_addr_ok;
+wire        data_sram_data_ok;
+wire [31:0] data_sram_rdata;
+AXI_convert AXI_convert(
+                .inst_sram_req(inst_sram_req),
+                .inst_sram_wr(inst_sram_wr),
+                .inst_sram_size(inst_sram_size),
+                .inst_sram_addr(inst_sram_addr),
+                .inst_sram_wstrb(inst_sram_wstrb),
+                .inst_sram_wdata(inst_sram_wdata),
+                .inst_sram_addr_ok(inst_sram_addr_ok),
+                .inst_sram_data_ok(inst_sram_data_ok),
+                .inst_sram_rdata(inst_sram_rdata),
+                .data_sram_req(data_sram_req),
+                .data_sram_wr(data_sram_wr),
+                .data_sram_size(data_sram_size),
+                .data_sram_addr(data_sram_addr),
+                .data_sram_wstrb(data_sram_wstrb),
+                .data_sram_wdata(data_sram_wdata),
+                .data_sram_addr_ok(data_sram_addr_ok),
+                .data_sram_data_ok(data_sram_data_ok),
+                .data_sram_rdata(data_sram_rdata),
+
+                .aclk(aclk),
+                .reset(reset),
+
+                .arid(arid),
+                .araddr(araddr),
+                .arlen(arlen),
+                .arsize(arsize),
+                .arburst(arburst),
+                .arlock(arlock),
+                .arcache(arcache),
+                .arprot(arprot),
+                .arvalid(arvalid),
+                .arready(arready),
+
+                .rid(rid),
+                .rdata(rdata),
+                .rvalid(rvalid),
+                .rready(rready),
+
+                .awid(awid),
+                .awaddr(awaddr),
+                .awlen(awlen),
+                .awsize(awsize),
+                .awburst(awburst),
+                .awlock(awlock),
+                .awcache(awcache),
+                .awprot(awprot),
+                .awvalid(awvalid),
+                .awready(awready),
+
+                .wid(wid),
+                .wdata(wdata),
+                .wstrb(wstrb),
+                .wlast(wlast),
+                .wvalid(wvalid),
+                .wready(wready),
+
+                .bid(bid),
+                .bresp(bresp),
+                .bvalid(bvalid),
+                .bready(bready)
+            );
 
 // Data Harzard Detect
 wire    [31:0]  addr1_forward, addr2_forward;
@@ -173,7 +303,7 @@ wire st_disable = ex_ex | mem_ex | wb_ex;
 
 // IF
 IF  u_IF(
-        .clk(clk),
+        .clk(aclk),
         .reset(reset),
         .inst_sram_req(inst_sram_req),
         .inst_sram_wr(inst_sram_wr),
@@ -201,7 +331,7 @@ IF  u_IF(
 
 // ID
 ID  u_ID(
-        .clk(clk),
+        .clk(aclk),
         .reset(reset||wb_ex||ertn_flush),
         .timecnt(timecnt),
         .valid(IFreg_valid),
@@ -230,7 +360,7 @@ ID  u_ID(
 
 // EX
 EX  u_EX(
-        .clk(clk),
+        .clk(aclk),
         .reset(reset||wb_ex||ertn_flush),
         .valid(IDreg_valid),
         .IDreg_bus(IDreg),
@@ -257,12 +387,13 @@ EX  u_EX(
         .rdcntv_op(rdcntv_op),
         .counter_value(counter_value),
 
-        .ertn_cancel(MEM_ertn||WB_ertn)
+        .ertn_cancel(MEM_ertn||WB_ertn),
+        .wait_data_ok(wait_data_ok)
     );
 
 // MEM
 MEM u_MEM(
-        .clk(clk),
+        .clk(aclk),
         .reset_real(reset),
         .reset(reset||wb_ex||ertn_flush),
         .valid(EXreg_valid),
@@ -285,12 +416,13 @@ MEM u_MEM(
         .MEM_bypass_bus(MEM_bypass_bus),
         .MEMreg_valid(toMEMreg_valid_bus),
         .MEMreg_bus(MEMreg_bus),
-        .ertn_flush(MEM_ertn)
+        .ertn_flush(MEM_ertn),
+        .wait_data_ok(wait_data_ok)
     );
 
 // WB
 WB  u_WB(
-        .clk(clk),
+        .clk(aclk),
         .reset(reset||wb_ex||ertn_flush),
         .valid(MEMreg_valid),
         .MEMreg_bus(MEMreg),
@@ -316,7 +448,7 @@ assign ertn_flush = CSR_in_bus[80];
 
 // Pipeline update
 // IFreg
-always @(posedge clk)
+always @(posedge aclk)
 begin
     if (reset||wb_ex||ertn_flush)
     begin
@@ -341,7 +473,7 @@ begin
 end
 
 // IDreg
-always @(posedge clk)
+always @(posedge aclk)
 begin
     if (reset||wb_ex||ertn_flush)
     begin
@@ -366,7 +498,7 @@ begin
 end
 
 // EXreg
-always @(posedge clk)
+always @(posedge aclk)
 begin
     if (reset||wb_ex||ertn_flush)
     begin
@@ -391,7 +523,7 @@ begin
 end
 
 // MEMreg
-always @(posedge clk)
+always @(posedge aclk)
 begin
     if (reset||wb_ex||ertn_flush)
     begin

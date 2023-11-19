@@ -27,7 +27,8 @@ module MEM(
        output  wire                            MEMreg_valid,
        output  wire [`MEMReg_BUS_LEN - 1:0]    MEMreg_bus,
 
-       output wire ertn_flush
+       output wire ertn_flush,
+       input wait_data_ok
 );
 
 // ebus
@@ -42,8 +43,8 @@ assign  {EX2MEM_bus, EX2WB_bus} = EXreg_bus;
 wire    [31:0]  mul_result, EX_result, rkd_value;
 wire    [4:0]   ld_ctrl;            // = {inst_ld_w, inst_ld_b, inst_ld_bu, inst_ld_h, inst_ld_hu}
 wire            mul;
-wire            wait_data_ok;
-assign  {wait_data_ok, ebus_init, mul, mul_result, EX_result, rkd_value, ld_ctrl} = EX2MEM_bus;
+wire            wait_data_ok_r;
+assign  {wait_data_ok_r, ebus_init, mul, mul_result, EX_result, rkd_value, ld_ctrl} = EX2MEM_bus;
 
 wire [79:0]     csr_ctrl;
 wire            res_from_csr;
