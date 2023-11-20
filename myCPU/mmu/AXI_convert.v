@@ -142,7 +142,9 @@ module AXI_convert(
             end
             RWAIT:
             begin
-                if(rready && rvalid)
+                if(arvalid && arready)
+                    r_next_state <= RWAIT;
+                else if(rready && rvalid)
                     r_next_state <= RINIT;
                 else
                     r_next_state <= RWAIT;
@@ -155,11 +157,12 @@ module AXI_convert(
     end    
 
     // write-acquire + write-data
-    localparam WINIT    = 4'b0001;
-    localparam AWREADY  = 4'b0010;
-    localparam WREADY   = 4'b0100;
-    localparam ALLREADY = 4'b1000;
-    reg [3:0] w_current_state, w_next_state;
+    localparam WINIT    = 4'b00001;
+    localparam WWAIT    = 4'b00010;
+    localparam AWREADY  = 4'b00100;
+    localparam WREADY   = 4'b01000;
+    localparam ALLREADY = 5'b10000;
+    reg [4:0] w_current_state, w_next_state;
     always@(posedge aclk)begin
         if(reset)
             w_current_state <= WINIT;
@@ -170,6 +173,13 @@ module AXI_convert(
         case(w_current_state)
             WINIT:
             begin
+                if(data_sram_req && data_sram_wr)
+                    w_next_state <= WWAIT;
+                else
+                    w_next_state <= WINIT;
+            end
+            WWAIT:
+            begin
                 if(awvalid && awready && wvalid && wready)
                     w_next_state <= ALLREADY;
                 else if(awvalid && awready)
@@ -177,7 +187,7 @@ module AXI_convert(
                 else if(wvalid && wready)
                     w_next_state <= WREADY;
                 else
-                    w_next_state <= WINIT;
+                    w_next_state <= WWAIT;
             end
             AWREADY:
             begin
@@ -239,13 +249,13 @@ module AXI_convert(
         endcase
     end
 
-    assign read_harzard = (araddr == awaddr) && ((|w_current_state[3:1]) && !b_current_state[2]);
+    assign read_harzard = (araddr == awaddr) && ((|w_current_state[4:1]) && !b_current_state[2]);
     assign arlen    = 8'b0;
     assign arburst  = 2'b01;
     assign arlock   = 2'b0;
     assign arcache  = 4'b0;
     assign arprot   = 3'b0;
-    assign arvalid  = !reset && (data_sram_req && !data_sram_wr || inst_sram_req && !inst_sram_wr) && !read_harzard;
+    assign arvalid  = !reset && (data_sram_req && !data_sram_wr || inst_sram_req && !inst_sram_wr);
     assign arid     = data_sram_req && !data_sram_wr ? 4'b1 : 4'b0;
     assign arsize   = data_sram_req && !data_sram_wr ? data_sram_size : inst_sram_size;
     assign araddr   = data_sram_req && !data_sram_wr ? data_sram_addr : inst_sram_addr;
@@ -267,23 +277,23 @@ module AXI_convert(
     assign awprot   = 3'b0;
     assign awaddr   = data_sram_addr;
     assign awsize   = data_sram_size;
-    assign awvalid  = !reset && (data_sram_req && data_sram_wr);
+    assign awvalid  = !reset && (w_current_state[1] || w_current_state[3]);
 
     assign wid      = 4'b1;
     assign wlast    = 1'b1;
     assign wdata    = data_sram_wdata;
     assign wstrb    = data_sram_wstrb;
-    assign wvalid   = !reset && data_sram_req && data_sram_wr;
+    assign wvalid   = !reset && (w_current_state[1] || w_current_state[2]);
 
-    assign bready   = !reset && w_current_state[3];
+    assign bready   = !reset && w_current_state[4];
     
     assign inst_sram_addr_ok = !arid[0] && arready && arvalid;
     assign inst_sram_data_ok = !rid[0] && rvalid && rready;
     assign inst_sram_rdata   = !rid[0] ? rdata : 0;
     assign data_sram_addr_ok = arid[0] && arready && arvalid || 
-                               wid[0] && (w_current_state[0] && awready && wready ||
-                                          w_current_state[1] && wready ||
-                                          w_current_state[2] && awready);
+                               wid[0] && (w_current_state[1] && (awready && wready || awvalid && wvalid && !awready && !wready) ||
+                                          w_current_state[2] && wready ||
+                                          w_current_state[3] && awready);
     assign data_sram_data_ok = rid[0] && rvalid && rready || 
                                bid[0] && bvalid && bready;
     assign data_sram_rdata   = rid[0] ? rdata : 0;

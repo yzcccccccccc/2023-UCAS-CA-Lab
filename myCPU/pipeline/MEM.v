@@ -27,8 +27,7 @@ module MEM(
        output  wire                            MEMreg_valid,
        output  wire [`MEMReg_BUS_LEN - 1:0]    MEMreg_bus,
 
-       output wire ertn_flush,
-       input wait_data_ok
+       output wire ertn_flush
 );
 
 // ebus
@@ -86,7 +85,7 @@ assign ebus_end = ebus_init;
 
 // control signals
 assign MEM_allow_in         = ~MEMreg_valid | WB_allow_in & MEM_ready_go;
-assign MEM_ready_go         = (wait_data_ok & valid & recv_data_from_sram) ? data_sram_data_ok : 1;
+assign MEM_ready_go         = (valid & recv_data_from_sram) ? data_sram_data_ok : 1;
 
 // data harzard bypass
 assign MEM_bypass_bus       = {pause_int_detect & MEMreg_valid, res_from_csr, rf_waddr, rf_we & valid, MEM_final_result};

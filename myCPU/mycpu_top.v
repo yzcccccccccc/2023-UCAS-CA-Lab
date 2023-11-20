@@ -387,8 +387,7 @@ EX  u_EX(
         .rdcntv_op(rdcntv_op),
         .counter_value(counter_value),
 
-        .ertn_cancel(MEM_ertn||WB_ertn),
-        .wait_data_ok(wait_data_ok)
+        .ertn_cancel(MEM_ertn||WB_ertn)
     );
 
 // MEM
@@ -416,8 +415,7 @@ MEM u_MEM(
         .MEM_bypass_bus(MEM_bypass_bus),
         .MEMreg_valid(toMEMreg_valid_bus),
         .MEMreg_bus(MEMreg_bus),
-        .ertn_flush(MEM_ertn),
-        .wait_data_ok(wait_data_ok)
+        .ertn_flush(MEM_ertn)
     );
 
 // WB

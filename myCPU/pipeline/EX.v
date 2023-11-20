@@ -35,8 +35,7 @@ module EX(
     input wire [31:0] counter_value,
     output wire [1:0] rdcntv_op,
 
-    input wire ertn_cancel,
-    output wait_data_ok
+    input wire ertn_cancel
 );
 
 /************************************************************************************
