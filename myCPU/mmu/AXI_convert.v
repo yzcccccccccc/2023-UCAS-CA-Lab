@@ -10,6 +10,7 @@ module AXI_convert(
     input  wire [31:0] inst_sram_addr,
     input  wire [3:0]  inst_sram_wstrb,
     input  wire [31:0] inst_sram_wdata,
+    input  wire        preIF_cancel,
     output wire        inst_sram_addr_ok,
     output wire        inst_sram_data_ok,
     output wire [31:0] inst_sram_rdata,
@@ -48,7 +49,7 @@ module AXI_convert(
     input  wire [1:0]  rresp,
     input  wire        rlast,
     input  wire        rvalid,
-    output reg         rready,
+    output wire        rready,
 
     // write-acquire
     output wire [3:0]  awid,            //always=1
@@ -77,6 +78,8 @@ module AXI_convert(
     output wire        bready
 );
     wire read_harzard;
+    reg [63:0] rdata_buff;
+    reg [1:0] read_data_ok;
     // state machine
     // read-acquire
     localparam ARINIT = 3'b001;
@@ -93,9 +96,9 @@ module AXI_convert(
         case(ar_current_state)
             ARINIT:
             begin
-                if(arvalid && arready)
-                    ar_next_state <= ARACQUIRED;
-                else if(arvalid || arready)
+                if(reset || read_harzard)
+                    ar_next_state <= ARINIT;
+                else if(data_sram_req && !data_sram_wr || inst_sram_req && !inst_sram_wr)
                     ar_next_state <= ARWAIT;
                 else
                     ar_next_state <= ARINIT;
@@ -110,10 +113,6 @@ module AXI_convert(
             ARACQUIRED:
             begin
                 ar_next_state <= ARINIT;
-                // if(rready && rvalid)
-                //     ar_next_state <= ARINIT;
-                // else
-                //     ar_next_state <= ARACQUIRED;
             end
             default:
                 ;
@@ -121,10 +120,12 @@ module AXI_convert(
     end
 
     // read-responce
-    localparam RINIT = 3'b001;
-    localparam RWAIT = 3'b010;
-    localparam RDATA = 3'b100;
-    reg [2:0] r_current_state, r_next_state;
+    localparam RINIT = 5'b00001;
+    localparam INST_WAIT = 5'b00010;
+    localparam DATA_WAIT = 5'b00100;
+    localparam ALL_WAIT = 5'b01000;
+    localparam RDATA = 5'b10000;
+    reg [4:0] r_current_state, r_next_state;
     always@(posedge aclk)begin
         if(reset)
             r_current_state <= RINIT;
@@ -135,22 +136,61 @@ module AXI_convert(
         case(r_current_state)
             RINIT:
             begin
-                if(arvalid && arready)
-                    r_next_state <= RWAIT;
+                if(arvalid && arready && !arid[0])      // inst acquire
+                    r_next_state <= INST_WAIT;
+                else if(arvalid && arready && arid[0])  // data acquire
+                    r_next_state <= DATA_WAIT;
                 else
                     r_next_state <= RINIT;
             end
-            RWAIT:
+            INST_WAIT:
             begin
-                if(arvalid && arready)
-                    r_next_state <= RWAIT;
-                else if(rready && rvalid)
-                    r_next_state <= RINIT;
+                if(arvalid && arready && arid[0] && rready && rvalid && !rid[0])   // 指令返回，同时数据读请求
+                    r_next_state <= DATA_WAIT;
+                else if(arvalid && arready && !arid[0] && rready && rvalid && !rid[0]) // 指令返回，同时指令读请求(不太可能)
+                    r_next_state <= INST_WAIT;
+                else if(arvalid && arready && arid[0])       // 指令未返回，同时数据读请求
+                    r_next_state <= ALL_WAIT;
+                else if(rready && rvalid && !rid[0])                   // 指令返回
+                    r_next_state <= RDATA;
                 else
-                    r_next_state <= RWAIT;
+                    r_next_state <= INST_WAIT;
+            end
+            DATA_WAIT:
+            begin
+                if(arvalid && arready && !arid[0] && rready && rvalid && rid[0])  // 数据返回，同时指令读请求
+                    r_next_state <= INST_WAIT;
+                else if(arvalid && arready && arid[0] && rready && rvalid && rid[0])  // 数据返回，同时数据读请求(不太可能)
+                    r_next_state <= DATA_WAIT;
+                else if(arvalid && arready && !arid[0])     // 数据未返回，同时指令读请求
+                    r_next_state <= ALL_WAIT;
+                else if(rready && rvalid && rid[0])
+                    r_next_state <= RDATA;
+                else
+                    r_next_state <= DATA_WAIT;
+            end
+            ALL_WAIT:
+            begin
+                if(arvalid && arready && arid[0] && rready && rvalid && rid[0])  // 数据返回，同时数据读请求(不太可能)
+                    r_next_state <= ALL_WAIT;
+                else if(arvalid && arready && !arid[0] && rready && rvalid && !rid[0])  // 指令返回，同时指令读请求(不太可能)
+                    r_next_state <= ALL_WAIT;
+                else if(rready && rvalid && rid[0])              // 数据返回
+                    r_next_state <= INST_WAIT;
+                else if(rready && rvalid && !rid[0])        // 指令返回
+                    r_next_state <= DATA_WAIT;
+                else
+                    r_next_state <= ALL_WAIT;
             end
             RDATA:
-                r_next_state <= RINIT;
+            begin
+                if(arvalid && arready && !arid[0])      // inst acquire
+                    r_next_state <= INST_WAIT;
+                else if(arvalid && arready && arid[0])  // data acquire
+                    r_next_state <= DATA_WAIT;
+                else
+                    r_next_state <= RINIT;
+            end
             default:
                 ;
         endcase
@@ -250,23 +290,43 @@ module AXI_convert(
     end
 
     assign read_harzard = (araddr == awaddr) && ((|w_current_state[4:1]) && !b_current_state[2]);
+    // [hint]需要保证valid拉高且ready还未拉高时通道值不变
     assign arlen    = 8'b0;
     assign arburst  = 2'b01;
     assign arlock   = 2'b0;
     assign arcache  = 4'b0;
     assign arprot   = 3'b0;
-    assign arvalid  = !reset && (data_sram_req && !data_sram_wr || inst_sram_req && !inst_sram_wr);
-    assign arid     = data_sram_req && !data_sram_wr ? 4'b1 : 4'b0;
-    assign arsize   = data_sram_req && !data_sram_wr ? data_sram_size : inst_sram_size;
-    assign araddr   = data_sram_req && !data_sram_wr ? data_sram_addr : inst_sram_addr;
+    assign arvalid  = ar_current_state[1];
+    wire ar_ready;
+    assign ar_ready = ar_current_state[0] || ar_current_state[2];
+    assign arid     = ar_ready ? 
+                      (data_sram_req && !data_sram_wr ? 4'b1 : 4'b0) : 
+                      (preIF_cancel ? 4'b0 : arid);
+    assign arsize   = ar_ready ? 
+                      (data_sram_req && !data_sram_wr ? data_sram_size : inst_sram_size) : 
+                      (preIF_cancel ? inst_sram_size : arsize);
+    reg [31:0] araddr_pre;
+    always@(posedge aclk)begin
+        araddr_pre <= araddr;
+    end
+    assign araddr   = ar_ready ? 
+                      ((data_sram_req && !data_sram_wr) ? data_sram_addr : inst_sram_addr) : 
+                      (preIF_cancel ? inst_sram_addr : araddr_pre);
     
+    assign rready   = !reset && (|r_current_state[3:1]);
+
     always@(posedge aclk)begin
         if(reset)
-            rready <= 0;
-        else if(arvalid && arready)
-            rready <= 1;
-        else if(rready && rvalid)
-            rready <= 0;
+            rdata_buff <= 64'b0;
+        else if(rready && rvalid && rid[0])
+            rdata_buff[63:32] <= rdata;
+        else if(rready && rvalid && !rid[0])
+            rdata_buff[31:0] <= rdata;
+        else
+            rdata_buff <= 64'b0;
+    end
+    always@(posedge aclk)begin
+        read_data_ok <= {rid[0] && rready && rvalid, !rid[0] && rready && rvalid};
     end
 
     assign awid     = 4'b1;
@@ -275,26 +335,26 @@ module AXI_convert(
     assign awlock   = 2'b0;
     assign awcache  = 4'b0;
     assign awprot   = 3'b0;
-    assign awaddr   = data_sram_addr;
-    assign awsize   = data_sram_size;
+    assign awaddr   = w_current_state[0] ? data_sram_addr : awaddr;
+    assign awsize   = w_current_state[0] ? data_sram_size : awsize;
     assign awvalid  = !reset && (w_current_state[1] || w_current_state[3]);
 
     assign wid      = 4'b1;
     assign wlast    = 1'b1;
-    assign wdata    = data_sram_wdata;
-    assign wstrb    = data_sram_wstrb;
+    assign wdata    = w_current_state[0] ? data_sram_wdata : wdata;
+    assign wstrb    = w_current_state[0] ? data_sram_wstrb : wstrb;
     assign wvalid   = !reset && (w_current_state[1] || w_current_state[2]);
 
     assign bready   = !reset && w_current_state[4];
     
     assign inst_sram_addr_ok = !arid[0] && arready && arvalid;
-    assign inst_sram_data_ok = !rid[0] && rvalid && rready;
-    assign inst_sram_rdata   = !rid[0] ? rdata : 0;
+    assign inst_sram_data_ok = read_data_ok[0];             // 由于rdata_buff的存在，需要慢一拍给出data_ok信号，再加上取数据相关阻塞，最大可能慢两拍
+    assign inst_sram_rdata   = rdata_buff[31:0];
     assign data_sram_addr_ok = arid[0] && arready && arvalid || 
                                wid[0] && (w_current_state[1] && (awready && wready || awvalid && wvalid && !awready && !wready) ||
                                           w_current_state[2] && wready ||
                                           w_current_state[3] && awready);
-    assign data_sram_data_ok = rid[0] && rvalid && rready || 
+    assign data_sram_data_ok = read_data_ok[1] || 
                                bid[0] && bvalid && bready;
-    assign data_sram_rdata   = rid[0] ? rdata : 0;
+    assign data_sram_rdata   = rdata_buff[63:32];
 endmodule

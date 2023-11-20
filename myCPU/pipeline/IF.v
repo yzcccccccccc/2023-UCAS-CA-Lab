@@ -11,6 +11,7 @@ module IF(
     output  wire [31:0] inst_sram_addr,
     output  wire [3:0]  inst_sram_wstrb,
     output  wire [31:0] inst_sram_wdata,
+    output  wire        preIF_cancel,
     input   wire        inst_sram_addr_ok,
     input   wire        inst_sram_data_ok,
     input   wire [31:0] inst_sram_rdata,

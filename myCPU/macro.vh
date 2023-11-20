@@ -15,7 +15,7 @@
 
 // Data Forward Bypass
 `define EX_BYPASS_LEN   42
-`define MEM_BYPASS_LEN  40
+`define MEM_BYPASS_LEN  41
 `define WB_BYPASS_LEN   40
 
 // CSR ADDR

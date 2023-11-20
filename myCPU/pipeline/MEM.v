@@ -88,7 +88,7 @@ assign MEM_allow_in         = ~MEMreg_valid | WB_allow_in & MEM_ready_go;
 assign MEM_ready_go         = (valid & recv_data_from_sram) ? data_sram_data_ok : 1;
 
 // data harzard bypass
-assign MEM_bypass_bus       = {pause_int_detect & MEMreg_valid, res_from_csr, rf_waddr, rf_we & valid, MEM_final_result};
+assign MEM_bypass_bus       = {pause_int_detect & MEMreg_valid, res_from_csr, rf_waddr, rf_we & valid,res_from_mem & valid, MEM_final_result};
 
 // MEMreg_bus
 reg     has_reset;

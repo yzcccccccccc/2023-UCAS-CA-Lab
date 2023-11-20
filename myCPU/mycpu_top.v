@@ -193,6 +193,7 @@ wire [1:0]  inst_sram_size;
 wire [31:0] inst_sram_addr;
 wire [3:0]  inst_sram_wstrb;
 wire [31:0] inst_sram_wdata;
+wire        preIF_cancel;
 wire        inst_sram_addr_ok;
 wire        inst_sram_data_ok;
 wire [31:0] inst_sram_rdata;
@@ -213,6 +214,7 @@ AXI_convert AXI_convert(
                 .inst_sram_addr(inst_sram_addr),
                 .inst_sram_wstrb(inst_sram_wstrb),
                 .inst_sram_wdata(inst_sram_wdata),
+                .preIF_cancel(preIF_cancel),
                 .inst_sram_addr_ok(inst_sram_addr_ok),
                 .inst_sram_data_ok(inst_sram_data_ok),
                 .inst_sram_rdata(inst_sram_rdata),
@@ -311,6 +313,7 @@ IF  u_IF(
         .inst_sram_addr(inst_sram_addr),
         .inst_sram_wstrb(inst_sram_wstrb),
         .inst_sram_wdata(inst_sram_wdata),
+        .preIF_cancel(preIF_cancel),
         .inst_sram_addr_ok(inst_sram_addr_ok),
         .inst_sram_data_ok(inst_sram_data_ok),
         .inst_sram_rdata(inst_sram_rdata),
