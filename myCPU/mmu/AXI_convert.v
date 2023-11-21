@@ -80,6 +80,7 @@ module AXI_convert(
     wire read_harzard;
     reg [63:0] rdata_buff;
     reg [1:0] read_data_ok;
+    reg [7:0] unfinish_cnt;
     // state machine
     // read-acquire
     localparam ARINIT = 3'b001;
@@ -120,12 +121,15 @@ module AXI_convert(
     end
 
     // read-responce
-    localparam RINIT = 5'b00001;
-    localparam INST_WAIT = 5'b00010;
-    localparam DATA_WAIT = 5'b00100;
-    localparam ALL_WAIT = 5'b01000;
-    localparam RDATA = 5'b10000;
-    reg [4:0] r_current_state, r_next_state;
+    // localparam RINIT = 5'b00001;
+    // localparam INST_WAIT = 5'b00010;
+    // localparam DATA_WAIT = 5'b00100;
+    // localparam ALL_WAIT = 5'b01000;
+    // localparam RDATA = 5'b10000;
+    localparam RINIT = 3'b001;
+    localparam RWAIT = 3'b010;
+    localparam RDATA = 3'b100;
+    reg [2:0] r_current_state, r_next_state;
     always@(posedge aclk)begin
         if(reset)
             r_current_state <= RINIT;
@@ -136,65 +140,98 @@ module AXI_convert(
         case(r_current_state)
             RINIT:
             begin
-                if(arvalid && arready && !arid[0])      // inst acquire
-                    r_next_state <= INST_WAIT;
-                else if(arvalid && arready && arid[0])  // data acquire
-                    r_next_state <= DATA_WAIT;
+                if(arvalid && arready)
+                    r_next_state <= RWAIT;
                 else
                     r_next_state <= RINIT;
             end
-            INST_WAIT:
+            RWAIT:
             begin
-                if(arvalid && arready && arid[0] && rready && rvalid && !rid[0])   // 指令返回，同时数据读请求
-                    r_next_state <= DATA_WAIT;
-                else if(arvalid && arready && !arid[0] && rready && rvalid && !rid[0]) // 指令返回，同时指令读请求(不太可能)
-                    r_next_state <= INST_WAIT;
-                else if(arvalid && arready && arid[0])       // 指令未返回，同时数据读请�?
-                    r_next_state <= ALL_WAIT;
-                else if(rready && rvalid && !rid[0])                   // 指令返回
-                    r_next_state <= RDATA;
+                if(arvalid && arready && rready && rvalid)
+                    r_next_state <= RWAIT;
+                else if(rready && rvalid)begin
+                    if(unfinish_cnt == 8'b1)
+                        r_next_state <= RDATA;
+                    else
+                        r_next_state <= RWAIT;
+                end
                 else
-                    r_next_state <= INST_WAIT;
-            end
-            DATA_WAIT:
-            begin
-                if(arvalid && arready && !arid[0] && rready && rvalid && rid[0])  // 数据返回，同时指令读请求
-                    r_next_state <= INST_WAIT;
-                else if(arvalid && arready && arid[0] && rready && rvalid && rid[0])  // 数据返回，同时数据读请求(不太可能)
-                    r_next_state <= DATA_WAIT;
-                else if(arvalid && arready && !arid[0])     // 数据未返回，同时指令读请�?
-                    r_next_state <= ALL_WAIT;
-                else if(rready && rvalid && rid[0])
-                    r_next_state <= RDATA;
-                else
-                    r_next_state <= DATA_WAIT;
-            end
-            ALL_WAIT:
-            begin
-                if(arvalid && arready && arid[0] && rready && rvalid && rid[0])  // 数据返回，同时数据读请求(不太可能)
-                    r_next_state <= ALL_WAIT;
-                else if(arvalid && arready && !arid[0] && rready && rvalid && !rid[0])  // 指令返回，同时指令读请求(不太可能)
-                    r_next_state <= ALL_WAIT;
-                else if(rready && rvalid && rid[0])              // 数据返回
-                    r_next_state <= INST_WAIT;
-                else if(rready && rvalid && !rid[0])        // 指令返回
-                    r_next_state <= DATA_WAIT;
-                else
-                    r_next_state <= ALL_WAIT;
+                    r_next_state <= RWAIT;
             end
             RDATA:
             begin
-                if(arvalid && arready && !arid[0])      // inst acquire
-                    r_next_state <= INST_WAIT;
-                else if(arvalid && arready && arid[0])  // data acquire
-                    r_next_state <= DATA_WAIT;
+                if(arvalid && arready)
+                    r_next_state <= RWAIT;
                 else
                     r_next_state <= RINIT;
             end
             default:
                 ;
         endcase
-    end    
+    end
+    // always@(*)begin
+    //     case(r_current_state)
+    //         RINIT:
+    //         begin
+    //             if(arvalid && arready && !arid[0])      // inst acquire
+    //                 r_next_state <= INST_WAIT;
+    //             else if(arvalid && arready && arid[0])  // data acquire
+    //                 r_next_state <= DATA_WAIT;
+    //             else
+    //                 r_next_state <= RINIT;
+    //         end
+    //         INST_WAIT:
+    //         begin
+    //             if(arvalid && arready && arid[0] && rready && rvalid && !rid[0])   // 指令返回，同时数据读请求
+    //                 r_next_state <= DATA_WAIT;
+    //             else if(arvalid && arready && !arid[0] && rready && rvalid && !rid[0]) // 指令返回，同时指令读请求(不太可能)
+    //                 r_next_state <= INST_WAIT;
+    //             else if(arvalid && arready && arid[0])       // 指令未返回，同时数据读请�?
+    //                 r_next_state <= ALL_WAIT;
+    //             else if(rready && rvalid && !rid[0])                   // 指令返回
+    //                 r_next_state <= RDATA;
+    //             else
+    //                 r_next_state <= INST_WAIT;
+    //         end
+    //         DATA_WAIT:
+    //         begin
+    //             if(arvalid && arready && !arid[0] && rready && rvalid && rid[0])  // 数据返回，同时指令读请求
+    //                 r_next_state <= INST_WAIT;
+    //             else if(arvalid && arready && arid[0] && rready && rvalid && rid[0])  // 数据返回，同时数据读请求(不太可能)
+    //                 r_next_state <= DATA_WAIT;
+    //             else if(arvalid && arready && !arid[0])     // 数据未返回，同时指令读请�?
+    //                 r_next_state <= ALL_WAIT;
+    //             else if(rready && rvalid && rid[0])
+    //                 r_next_state <= RDATA;
+    //             else
+    //                 r_next_state <= DATA_WAIT;
+    //         end
+    //         ALL_WAIT:
+    //         begin
+    //             if(arvalid && arready && arid[0] && rready && rvalid && rid[0])  // 数据返回，同时数据读请求(不太可能)
+    //                 r_next_state <= ALL_WAIT;
+    //             else if(arvalid && arready && !arid[0] && rready && rvalid && !rid[0])  // 指令返回，同时指令读请求(不太可能)
+    //                 r_next_state <= ALL_WAIT;
+    //             else if(rready && rvalid && rid[0])              // 数据返回
+    //                 r_next_state <= INST_WAIT;
+    //             else if(rready && rvalid && !rid[0])        // 指令返回
+    //                 r_next_state <= DATA_WAIT;
+    //             else
+    //                 r_next_state <= ALL_WAIT;
+    //         end
+    //         RDATA:
+    //         begin
+    //             if(arvalid && arready && !arid[0])      // inst acquire
+    //                 r_next_state <= INST_WAIT;
+    //             else if(arvalid && arready && arid[0])  // data acquire
+    //                 r_next_state <= DATA_WAIT;
+    //             else
+    //                 r_next_state <= RINIT;
+    //         end
+    //         default:
+    //             ;
+    //     endcase
+    // end    
 
     // write-acquire + write-data
     localparam WINIT    = 4'b00001;
@@ -290,14 +327,27 @@ module AXI_convert(
     end
 
     assign read_harzard = (araddr == awaddr) && ((|w_current_state[4:1]) && !b_current_state[2]);
+    always@(posedge aclk)begin
+        if(reset)
+            unfinish_cnt <= 8'b0;
+        else if(arready && arvalid && rvalid && rready)
+            unfinish_cnt <= unfinish_cnt;
+        else if(arvalid && arready)
+            unfinish_cnt <= unfinish_cnt + 8'b1;
+        else if(rready && rvalid)
+            unfinish_cnt <= unfinish_cnt - 8'b1;
+        else
+            unfinish_cnt <= unfinish_cnt;
+        
+    end
     // [hint]�?要保证valid拉高且ready还未拉高时�?�道值不�?
     reg [31:0] araddr_pre;
     reg [2:0]  arsize_pre;
     reg [3:0]  arid_pre;
     always@(posedge aclk)begin
-        araddr_pre <= araddr;
-        arid_pre   <= arid;
-        arsize_pre     <= arsize;
+        araddr_pre  <= araddr;
+        arid_pre    <= arid;
+        arsize_pre  <= arsize;
     end
     assign arlen    = 8'b0;
     assign arburst  = 2'b01;
@@ -317,7 +367,7 @@ module AXI_convert(
                       ((data_sram_req && !data_sram_wr) ? data_sram_addr : inst_sram_addr) : 
                       (preIF_cancel ? inst_sram_addr : araddr_pre);
     
-    assign rready   = !reset && (|r_current_state[3:1]);
+    assign rready   = !reset && r_current_state[1];
 
     always@(posedge aclk)begin
         if(reset)

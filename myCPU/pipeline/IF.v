@@ -64,7 +64,7 @@ module IF(
     wire        br_tak;
     wire [31:0] ertn_pc, ex_pc, br_pc;
 
-    wire        preIF_cancel, to_IF_valid;
+    wire        to_IF_valid;
 
     reg         IF_cancel_r;
     wire        IF_cancel_tak;
@@ -111,7 +111,7 @@ module IF(
         It's ok when preIF_cancel, the inst that will go to next
     stage would be invalidated.
     ************************************************************/
-    assign preIF_ready_go           = inst_sram_req & inst_sram_addr_ok;// | preIF_has_adef;
+    assign preIF_ready_go           = inst_sram_addr_ok;//inst_sram_req & inst_sram_addr_ok;// | preIF_has_adef;
 
     // to_IF_valid
     /***********************************************************
@@ -254,10 +254,10 @@ module IF(
         if (reset)
             unfinish_cnt <= 0;
         else begin
-            if (inst_sram_req & inst_sram_addr_ok & ~inst_sram_data_ok)
+            if (inst_sram_addr_ok & ~inst_sram_data_ok)// if (inst_sram_req & inst_sram_addr_ok & ~inst_sram_data_ok)
                 unfinish_cnt <= unfinish_cnt+8'b1;
             else
-                if (~(inst_sram_req & inst_sram_addr_ok) & inst_sram_data_ok)
+                if (~inst_sram_addr_ok & inst_sram_data_ok)// if (~(inst_sram_req & inst_sram_addr_ok) & inst_sram_data_ok)
                     unfinish_cnt <= unfinish_cnt-8'b1;
         end
     end
