@@ -214,7 +214,6 @@ AXI_convert AXI_convert(
                 .inst_sram_addr(inst_sram_addr),
                 .inst_sram_wstrb(inst_sram_wstrb),
                 .inst_sram_wdata(inst_sram_wdata),
-                .preIF_cancel(preIF_cancel),
                 .inst_sram_addr_ok(inst_sram_addr_ok),
                 .inst_sram_data_ok(inst_sram_data_ok),
                 .inst_sram_rdata(inst_sram_rdata),
