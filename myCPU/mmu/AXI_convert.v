@@ -271,7 +271,7 @@ module AXI_convert(
             unfinish_cnt <= unfinish_cnt;
         
     end
-    // [hint]�?要保证valid拉高且ready还未拉高时�?�道值不�?
+    // [hint]需要保证valid拉高且ready还未拉高时同通道的值不变
     reg [31:0] araddr_pre;
     reg [2:0]  arsize_pre;
     reg [3:0]  arid_pre;
@@ -347,7 +347,7 @@ module AXI_convert(
     assign bready   = !reset && w_current_state[4];
     
     assign inst_sram_addr_ok = !arid[0] && (ar_current_state == ARINIT && ar_next_state == ARWAIT);
-    assign inst_sram_data_ok = read_data_ok[0];             // 由于rdata_buff的存在，�?要慢�?拍给出data_ok信号，再加上取数据相关阻塞，�?大可能慢两拍
+    assign inst_sram_data_ok = read_data_ok[0];             // 由于rdata_buff的存在，需要慢1拍给出data_ok信号，再加上取数据相关阻塞，总共最大可能慢两拍
     assign inst_sram_rdata   = rdata_buff[31:0];
     assign data_sram_addr_ok = arid[0] && (ar_current_state == ARINIT && ar_next_state == ARWAIT) || 
                                wid[0] && (w_current_state[1] && (awready && wready || awvalid && wvalid && !awready && !wready) ||
