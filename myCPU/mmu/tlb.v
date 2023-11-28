@@ -3,7 +3,7 @@
     Authored by yzcc, 2023.11.27
 
 TLB format:
-    1) comparing part
+1) comparing part
     |       VPNN        |   PS  |   G   |   ASID    |   E   |
     31                  18      12      11          1       0
 
@@ -15,7 +15,7 @@ TLB format:
     VPPN:   18 bits (if VALEN = 32), one PTE manages 2 virtual pages,
             VPPN = VPN / 2.
 
-    2) converting part
+2) converting part
     |       PPN0        |   PLV0    |   MAT0    |   D0  |   V0  |
     |       PPN1        |   PLV1    |   MAT1    |   D1  |   V1  |
     31                  6           4           2       1       0
