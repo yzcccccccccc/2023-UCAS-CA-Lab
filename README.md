@@ -24,3 +24,7 @@
 * 涉及preIF和IF中指令取消的部分我的评价是依托答辩，具体细节在IF.v中的注释写了挺多了
 * 在DHD中增加逻辑，当WB级通知需要处理ex或者ertn时，不允许发出阻塞信号
 * 在divider中增加逻辑，当WB级通知需要处理ex或者ertn时，状态机立即切换并发出done信号
+
+### EXP18
+* 目前规划图：  
+![Alt text](pic/7f302cf378d25e36bed3c99ac44a9a7.jpg)

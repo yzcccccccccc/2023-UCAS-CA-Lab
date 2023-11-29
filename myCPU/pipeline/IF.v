@@ -32,7 +32,20 @@ module IF(
     input wire wb_ex,
     input wire [31:0] ex_entry,
     input wire ertn_flush,
-    input wire [31:0] era_pc
+    input wire [31:0] era_pc,
+
+    // TLB ports (s0_)
+    output  wire [18:0]     s0_vppn,
+    output  wire            s0_va_bit12,
+    output  wire            s0_asid,
+    input   wire            s0_found,
+    input   wire [3:0]      s0_index,
+    input   wire [19:0]     s0_ppn,
+    input   wire [5:0]      s0_ps,
+    input   wire [1:0]      s0_plv,
+    input   wire [1:0]      s0_mat,
+    input   wire            s0_d,
+    input   wire            s0_v
 );
 
 // Signal definitions

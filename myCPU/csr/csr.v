@@ -1,22 +1,65 @@
 `include "../macro.vh"
 `timescale 1ns / 1ps
 module csr(
-           input wire clk,
-           input wire reset,
+    input   wire        clk,
+    input   wire        reset,
 
-           // inst interface
-           input wire [79:0] csr_ctrl,
-           output wire [31:0] csr_rvalue,
+    // inst interface
+    input   wire [79:0] csr_ctrl,
+    output  wire [31:0] csr_rvalue,
 
-           // Request inst valid
-           input wire valid,
+    // Request inst valid
+    input   wire        valid,
 
-           // circuit interface
-           input wire [`WB2CSR_LEN-1:0] CSR_in_bus,
-           output wire [31:0] ex_entry,
-           output wire [31:0] era_pc,
-           output wire has_int
-       );
+    // circuit interface
+    input   wire [`WB2CSR_LEN-1:0]  CSR_in_bus,
+    output  wire [31:0]             ex_entry,
+    output  wire [31:0]             era_pc,
+    output  wire                    has_int,
+
+    // TLB ports
+    input   wire            tlbsrch_req,
+    input   wire            tlbsrch_hit,
+    input   wire [3:0]      tlbsrch_index,
+
+    input   wire            tlbrd_req,
+    output  wire [3:0]      r_index,
+    input   wire            r_e,
+    input   wire [18:0]     r_vppn,
+    input   wire [5:0]      r_ps,
+    input   wire [9:0]      r_asid,
+    input   wire            r_g,
+    input   wire [19:0]     r_ppn0,
+    input   wire [1:0]      r_plv0,
+    input   wire [1:0]      r_mat0,
+    input   wire            r_d0,
+    input   wire            r_v0,
+    input   wire [19:0]     r_ppn1,
+    input   wire [1:0]      r_plv1,
+    input   wire [1:0]      r_mat1,
+    input   wire            r_d1,
+    input   wire            r_v1
+
+    input   wire            tlbwr_req,
+    input   wire            tlbfill_req,
+    output  wire            we,
+    output  wire [3:0]      w_index,
+    output  wire            w_e,
+    output  wire [18:0]     w_vppn,
+    output  wire [5:0]      w_ps,
+    output  wire [9:0]      w_asid,
+    output  wire            w_g,
+    output  wire [19:0]     w_ppn0,
+    output  wire [1:0]      w_plv0,
+    output  wire [1:0]      w_mat0,
+    output  wire            w_d0,
+    output  wire            w_v0,
+    output  wire [19:0]     w_ppn1,
+    output  wire [1:0]      w_plv1,
+    output  wire [1:0]      w_mat1,
+    output  wire            w_d1,
+    output  wire            w_v1
+);
 
 // exp13 (maybe need to be ports?)
     wire [7:0]      hw_int_in;
@@ -79,6 +122,29 @@ reg [31:0]      csr_badv_vaddr;
 reg             csr_tcfg_en;
 reg             csr_tcfg_periodic;
 reg [29:0]      csr_tcfg_initval;
+
+// TLBIDX
+reg [3:0]       csr_tlbidx_index;
+reg [5:0]       csr_tlbidx_ps;
+reg             csr_tlbidx_ne;
+
+// TLBEHI
+reg [18:0]      csr_tlbehi_vppn;
+
+// TLBELO0 & TLBELO1
+reg             csr_tlbelo0_v, csr_tlbelo1_v;
+reg             csr_tlbelo0_d, csr_tlbelo1_d;
+reg [1:0]       csr_tlbelo0_plv, csr_tlbelo1_plv;
+reg [1:0]       csr_tlbelo0_mat, csr_tlbelo1_mat;
+reg             csr_tlbelo0_g, csr_tlbelo1_g;
+reg [23:0]      csr_tlbelo0_ppn, csr_tlbelo1_ppn;
+
+// ASID
+reg [9:0]       csr_asid_asid;
+reg [7:0]       csr_asid_asidbits;
+
+// TLBRENTRY
+reg [25:0]      csr_tlbrentry_pa;
 
 // Count Down
 reg [31:0]      timer_cnt;
@@ -292,6 +358,184 @@ assign csr_crmd_datm = 2'b00;
 
     assign csr_ticlr_clr = 1'b0;
 
+// TLBIDX
+    always @(posedge clk) begin
+        if (reset) begin
+            csr_tlbidx_index    <= 0;
+            csr_tlbidx_ps       <= 0;
+            csr_tlbidx_ne       <= 1;
+        end
+        else begin
+            if (csr_we && csr_num == `CSR_TLBIDX) begin
+                csr_tlbidx_index    <= csr_wmask[`CSR_TLBIDX_INDEX] & csr_wvalue[`CSR_TLBIDX_INDEX]
+                                    | ~csr_wmask[`CSR_TLBIDX_INDEX] & csr_tlbidx_index;
+                csr_tlbidx_ps       <= csr_wmask[`CSR_TLBIDX_PS] & csr_wvalue[`CSR_TLBIDX_PS]
+                                    | ~csr_wmask[`CSR_TLBIDX_PS] & csr_tlbidx_ps;
+                csr_tlbidx_ne       <= csr_wmask[`CSR_TLBIDX_NE] & csr_wvalue[`CSR_TLBIDX_NE]
+                                    | ~csr_wmask[`CSR_TLBIDX_NE] & csr_tlbidx_ne;
+            end
+            else begin
+                if (tlbsrch_req) begin
+                    csr_tlbidx_ne       <= ~tlbsrch_hit;
+                    csr_tlbidx_index    <= tlbsrch_hit ? tlbsrch_index : csr_tlbidx_index;
+                end
+                else begin
+                    if (tlbrd_req) begin
+                        csr_tlbidx_ne       <= ~r_e;
+                        csr_tlbidx_index    <= r_e ? r_index : csr_tlbidx_index;
+                        csr_tlbidx_ps       <= r_e ? r_ps : 0;
+                    end
+                end
+            end
+        end
+    end
+
+// TLBEHI
+    wire page_excep;
+    assign page_excep   = (wb_ecode == `ECODE_PIL) || (wb_ecode == `ECODE_PIS) || (wb_ecode == `ECODE_PIF) || (wb_ecode == `ECODE_PPI)
+                        || (wb_ecode == `ECODE_PME) || (wb_ecode == `ECODE_TLBR);
+    
+    always @(posedge clk) begin
+        if (reset)
+            csr_tlbehi_vppn <= 0;
+        else begin
+            if (csr_we && csr_num == `CSR_TLBEHI)
+                csr_tlbehi_vppn <= csr_wmask[`CSR_TLBEHI_VPPN] & csr_wvalue[`CSR_TLBEHI_VPPN]
+                                | ~csr_wmask[`CSR_TLBEHI_VPPN] & csr_tlbehi_vppn;
+            else
+                if (wb_ex && page_excep)
+                    csr_tlbehi_vppn     <= wb_vaddr[31:13];
+                else
+                    if (tlbrd_req)
+                        csr_tlbehi_vppn <= r_e ? r_vppn : 0;
+        end
+    end
+
+// TLBELO0&1
+    always @(posedge clk) begin
+        if (reset) begin
+            csr_tlbelo0_d   <= 0;
+            csr_tlbelo0_g   <= 0;
+            csr_tlbelo0_v   <= 0;
+            csr_tlbelo0_mat <= 0;
+            csr_tlbelo0_plv <= 0;
+            csr_tlbelo0_ppn <= 0;
+        end
+        else begin
+            if (csr_we && csr_num == `CSR_TLBELO0) begin
+                csr_tlbelo0_d   <= csr_wmask[`CSR_TLBELO_D] & csr_wvalue[`CSR_TLBELO_D]
+                                | ~csr_wmask[`CSR_TLBELO_D] & csr_tlbelo0_d;
+                csr_tlbelo0_g   <= csr_wmask[`CSR_TLBELO_G] & csr_wvalue[`CSR_TLBELO_G]
+                                | ~csr_wmask[`CSR_TLBELO_G] & csr_tlbelo0_g;
+                csr_tlbelo0_v   <= csr_wmask[`CSR_TLBELO_V] & csr_wvalue[`CSR_TLBELO_V]
+                                | ~csr_wmask[`CSR_TLBELO_V] & csr_tlbelo0_v;
+                csr_tlbelo0_mat <= csr_wmask[`CSR_TLBELO_MAT] & csr_wvalue[`CSR_TLBELO_MAT]
+                                | ~csr_wmask[`CSR_TLBELO_MAT] & csr_tlbelo0_mat;
+                csr_tlbelo0_plv <= csr_wmask[`CSR_TLBELO_PLV] & csr_wvalue[`CSR_TLBELO_PLV]
+                                | ~csr_wmask[`CSR_TLBELO_PLV] & csr_tlbelo0_plv;
+                csr_tlbelo0_ppn <= csr_wmask[`CSR_TLBELO_PPN] & csr_wvalue[`CSR_TLBELO_PPN]
+                                | ~csr_wmask[`CSR_TLBELO_PPN] & csr_tlbelo0_ppn;
+            end
+            else begin
+                if (tlbrd_req) begin
+                    csr_tlbelo0_d   <= r_e ? r_d0 : 0;
+                    csr_tlbelo0_g   <= r_e ? r_g : 0;
+                    csr_tlbelo0_v   <= r_e ? r_v0 : 0;
+                    csr_tlbelo0_mat <= r_e ? r_mat0 : 0;
+                    csr_tlbelo0_plv <= r_e ? r_plv0 : 0;
+                    csr_tlbelo0_ppn <= r_e ? r_ppn0 : 0;
+                end
+            end
+        end
+    end
+
+    always @(posedge clk) begin
+        if (reset) begin
+            csr_tlbelo1_d   <= 0;
+            csr_tlbelo1_g   <= 0;
+            csr_tlbelo1_v   <= 0;
+            csr_tlbelo1_mat <= 0;
+            csr_tlbelo1_plv <= 0;
+            csr_tlbelo1_ppn <= 0;
+        end
+        else begin
+            if (csr_we && csr_num == `CSR_TLBELO1) begin
+                csr_tlbelo1_d   <= csr_wmask[`CSR_TLBELO_D] & csr_wvalue[`CSR_TLBELO_D]
+                                | ~csr_wmask[`CSR_TLBELO_D] & csr_tlbelo1_d;
+                csr_tlbelo1_g   <= csr_wmask[`CSR_TLBELO_G] & csr_wvalue[`CSR_TLBELO_G]
+                                | ~csr_wmask[`CSR_TLBELO_G] & csr_tlbelo1_g;
+                csr_tlbelo1_v   <= csr_wmask[`CSR_TLBELO_V] & csr_wvalue[`CSR_TLBELO_V]
+                                | ~csr_wmask[`CSR_TLBELO_V] & csr_tlbelo1_v;
+                csr_tlbelo1_mat <= csr_wmask[`CSR_TLBELO_MAT] & csr_wvalue[`CSR_TLBELO_MAT]
+                                | ~csr_wmask[`CSR_TLBELO_MAT] & csr_tlbelo1_mat;
+                csr_tlbelo1_plv <= csr_wmask[`CSR_TLBELO_PLV] & csr_wvalue[`CSR_TLBELO_PLV]
+                                | ~csr_wmask[`CSR_TLBELO_PLV] & csr_tlbelo1_plv;
+                csr_tlbelo1_ppn <= csr_wmask[`CSR_TLBELO_PPN] & csr_wvalue[`CSR_TLBELO_PPN]
+                                | ~csr_wmask[`CSR_TLBELO_PPN] & csr_tlbelo1_ppn;
+            end
+            else begin
+                if (tlbrd_req) begin
+                    csr_tlbelo1_d   <= r_e ? r_d1 : 0;
+                    csr_tlbelo1_g   <= r_e ? r_g : 0;
+                    csr_tlbelo1_v   <= r_e ? r_v1 : 0;
+                    csr_tlbelo1_mat <= r_e ? r_mat1 : 0;
+                    csr_tlbelo1_plv <= r_e ? r_plv1 : 0;
+                    csr_tlbelo1_ppn <= r_e ? r_ppn1 : 0;
+                end
+            end
+        end
+    end
+
+// ASID
+    always @(posedge clk) begin
+        if (reset) begin
+            csr_asid_asid       <= 0;
+            csr_asid_asidbits   <= 8'd10;
+        end
+        else begin
+            if (csr_we && csr_num == `CSR_ASID)
+                csr_asid_asid   <= csr_wmask[`CSR_ASID_ASID] & csr_wvalue[`CSR_ASID_ASID]
+                                | ~csr_wmask[`CSR_ASID_ASID] & csr_asid_asid;
+            else
+                if (tlbrd_req)
+                    csr_asid_asid   <= r_e ? r_asid : 0;
+        end
+    end
+
+// TLBRENTRY
+    always @(posedge clk) begin
+        if (reset)
+            csr_tlbrentry_pa    <= 0;
+        else begin
+            if (csr_we && csr_num == `CSR_TLBRENTRY)
+                csr_tlbrentry_pa    <= csr_wmask[`CSR_TLBRENTRY_PA] & csr_wvalue[`CSR_TLBRENTRY_PA]
+                                    | ~csr_wmask[`CSR_TLBRENTRY_PA] & csr_tlbrentry_pa;
+        end
+    end
+
+// TLB ports
+    // TLB Read (TLB search will be handled in EX stage)
+    assign  r_index     = csr_tlbidx_index;
+
+    // TLB Write
+    assign  we          = tlbfill_req | tlbwr_req;
+    assign  w_index     = csr_tlbidx_index;
+    assign  w_e         = ~csr_tlbidx_ne || (csr_estat_ecode == 6'h3f);
+    assign  w_vppn      = csr_tlbehi_vppn;
+    assign  w_ps        = csr_tlbidx_ps;
+    assign  w_asid      = csr_asid_asid;
+    assign  w_g         = csr_tlbelo0_g & csr_tlbelo1_g;
+    assign  w_ppn0      = csr_tlbelo0_ppn;
+    assign  w_plv0      = csr_tlbelo0_plv;
+    assign  w_mat0      = csr_tlbelo0_mat;
+    assign  w_d0        = csr_tlbelo0_d;
+    assign  w_v0        = csr_tlbelo0_v;
+    assign  w_ppn1      = csr_tlbelo1_ppn;
+    assign  w_plv1      = csr_tlbelo1_plv;
+    assign  w_mat1      = csr_tlbelo1_mat;
+    assign  w_d1        = csr_tlbelo1_d;
+    assign  w_v1        = csr_tlbelo1_v;
+
 // return value
 wire [31:0] csr_crmd_rvalue = {23'b0, csr_crmd_datm, csr_crmd_datf, csr_crmd_pg, csr_crmd_da, csr_crmd_ie, csr_crmd_plv};
 wire [31:0] csr_prmd_rvalue = {29'b0, csr_prmd_pie, csr_prmd_pplv};
@@ -310,6 +554,13 @@ wire [31:0] csr_tcfg_rvalue     = {csr_tcfg_initval, csr_tcfg_periodic, csr_tcfg
 wire [31:0] csr_tval_rvalue     = {csr_tval};
 wire [31:0] csr_ticlr_rvalue    = {31'b0, csr_ticlr_clr};
 
+wire [31:0] csr_tlbidx_rvalue       = {csr_tlbidx_ne, 1'b0, csr_tlbidx_ps, 8'b0, 12'b0, csr_tlbidx_index};
+wire [31:0] csr_tlbehi_rvalue       = {csr_tlbehi_vppn, 13'b0};
+wire [31:0] csr_tlbelo0_rvalue      = {csr_tlbelo0_ppn, 1'b0, csr_tlbelo0_g, csr_tlbelo0_mat, csr_tlbelo0_plv, csr_tlbelo0_d, csr_tlbelo0_v};
+wire [31:0] csr_tlbelo1_rvalue      = {csr_tlbelo1_ppn, 1'b0, csr_tlbelo1_g, csr_tlbelo1_mat, csr_tlbelo1_plv, csr_tlbelo1_d, csr_tlbelo1_v};
+wire [31:0] csr_asid_rvalue         = {8'b0, csr_asid_asidbits, 6'b0, csr_asid_asid};
+wire [31:0] csr_tlbrentry_rvalue    = {csr_tlbrentry_pa, 6'b0};
+
 assign csr_rvalue = {32{csr_num==`CSR_CRMD}} & csr_crmd_rvalue
        | {32{csr_num==`CSR_PRMD}} & csr_prmd_rvalue
        | {32{csr_num==`CSR_ESTAT}} & csr_estat_rvalue
@@ -324,7 +575,13 @@ assign csr_rvalue = {32{csr_num==`CSR_CRMD}} & csr_crmd_rvalue
        | {32{csr_num == `CSR_TID}} & csr_tid_rvalue
        | {32{csr_num == `CSR_TCFG}} & csr_tcfg_rvalue
        | {32{csr_num == `CSR_TVAL}} & csr_tval_rvalue
-       | {32{csr_num == `CSR_TICLR}} & csr_ticlr_rvalue;
+       | {32{csr_num == `CSR_TICLR}} & csr_ticlr_rvalue
+       | {32{csr_num == `CSR_TLBIDX}} & csr_tlbidx_rvalue
+       | {32{csr_num == `CSR_TLBEHI}} & csr_tlbehi_rvalue
+       | {32{csr_num == `CSR_TLBELO0}} & csr_tlbelo0_rvalue
+       | {32{csr_num == `CSR_TLBELO1}} & csr_tlbelo1_rvalue
+       | {32{csr_num == `CSR_ASID}} & csr_asid_rvalue
+       | {32{csr_num == `CSR_TLBRENTRY}} & csr_tlbrentry_rvalue;
 
 
 endmodule

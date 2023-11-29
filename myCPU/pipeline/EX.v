@@ -29,13 +29,28 @@ module EX(
     output  wire                        EXreg_valid,
     output  wire [`EXReg_BUS_LEN - 1:0] EXreg_bus,
 
-    input wire st_disable,
+    input   wire st_disable,
 
     // rdcntv
-    input wire [31:0] counter_value,
-    output wire [1:0] rdcntv_op,
+    input   wire [31:0]     counter_value,
+    output  wire [1:0]      rdcntv_op,
 
-    input wire ertn_cancel
+    input   wire            ertn_cancel,
+
+    // TLB ports (s1_ && invtlb_)
+    output  wire [18:0]     s1_vppn,
+    output  wire            s1_va_bit12,
+    output  wire            s1_asid,
+    input   wire            s1_found,
+    input   wire [3:0]      s1_index,
+    input   wire [19:0]     s1_ppn,
+    input   wire [5:0]      s1_ps,
+    input   wire [1:0]      s1_plv,
+    input   wire [1:0]      s1_mat,
+    input   wire            s1_d,
+    input   wire            s1_v,
+    output  wire            invtlb_valie,
+    output  wire [4:0]      invtlb_op
 );
 
 /************************************************************************************

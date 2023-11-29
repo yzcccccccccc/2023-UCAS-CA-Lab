@@ -197,6 +197,13 @@ wire        inst_rdcntvl_w;
 wire        inst_rdcntvh_w;
 wire        inst_rdcntid;
 
+// tlbsrch, tlbrd, tlbwr, tlbfill, invtlb (exp18)
+wire   inst_tlbsrch;
+wire   inst_tlbrd;
+wire   inst_tlbwr;
+wire   inst_tlbfill;
+wire   inst_invtlb;
+
 wire [31:0] alu_src1   ;
 wire [31:0] alu_src2   ;
 
@@ -294,6 +301,13 @@ assign inst_rdcntvl_w   = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h0
 assign inst_rdcntvh_w   = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h0] & op_19_15_d[5'h00] & op_14_10_d[5'h19] & op_9_5_d[5'h00];
 assign inst_rdcntid     = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h0] & op_19_15_d[5'h00] & op_14_10_d[5'h18] & op_4_0_d[5'h00];
 
+// TLB instructions (exp18)
+assign inst_tlbsrch  = op_31_26_d[6'd01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h10] & op_14_10_d[5'h0a];
+assign inst_tlbrd    = op_31_26_d[6'd01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h10] & op_14_10_d[5'h0b];
+assign inst_tlbwr    = op_31_26_d[6'd01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h10] & op_14_10_d[5'h0c];
+assign inst_tlbfill  = op_31_26_d[6'd01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h10] & op_14_10_d[5'h0d];
+assign inst_invtlb   = op_31_26_d[6'd01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h13 ];
+
 /***************************************************************************
     alu_op[2:0] is also used as mul_op,
     alu_op[3:0] is also used as div_op
@@ -359,8 +373,10 @@ assign src2_is_imm   = inst_slli_w |
 
 assign res_from_mem  = inst_ld_w | inst_ld_b | inst_ld_bu | inst_ld_h | inst_ld_hu;
 assign dst_is_r1     = inst_bl;
-assign gr_we         =  ~inst_st_w & ~inst_st_b & ~inst_st_h &
-       ~inst_beq & ~inst_bne & ~inst_b & ~inst_blt & ~inst_bge & ~inst_bltu & ~inst_bgeu & ~inst_ertn & ~ inst_syscall & ~inst_break;
+assign gr_we         = ~inst_st_w         & ~inst_st_b  & ~inst_st_h
+                     & ~inst_beq          & ~inst_bne   & ~inst_b            & ~inst_blt          & ~inst_bge 
+                     & ~inst_bltu         & ~inst_bgeu  & ~inst_ertn         & ~inst_syscall      & ~inst_break
+                     & ~inst_tlbfill      & ~inst_tlbrd & ~inst_tlbsrch      & ~inst_tlbwr        & ~inst_invtlb;
 assign st_ctrl  = {inst_st_w, inst_st_h, inst_st_b};
 assign ld_ctrl  = {inst_ld_w, inst_ld_b, inst_ld_bu, inst_ld_h, inst_ld_hu};
 assign mem_en        = res_from_mem | inst_st_w | inst_st_h | inst_st_b;

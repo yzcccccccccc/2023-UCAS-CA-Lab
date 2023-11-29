@@ -3,28 +3,6 @@ module mycpu_top(
     input   wire        aclk,
     input   wire        aresetn,
 
-    // // inst sram interface (SRAM, exp14+)
-    // output  wire        inst_sram_req,
-    // output  wire        inst_sram_wr,
-    // output  wire [1:0]  inst_sram_size,
-    // output  wire [31:0] inst_sram_addr,
-    // output  wire [3:0]  inst_sram_wstrb,
-    // output  wire [31:0] inst_sram_wdata,
-    // input   wire        inst_sram_addr_ok,
-    // input   wire        inst_sram_data_ok,
-    // input   wire [31:0] inst_sram_rdata,
-
-    // // data sram interface (SRAM, exp14+)
-    // output  wire        data_sram_req,
-    // output  wire        data_sram_wr,
-    // output  wire [1:0]  data_sram_size,
-    // output  wire [31:0] data_sram_addr,
-    // output  wire [3:0]  data_sram_wstrb,
-    // output  wire [31:0] data_sram_wdata,
-    // input   wire        data_sram_addr_ok,
-    // input   wire        data_sram_data_ok,
-    // input   wire [31:0] data_sram_rdata,
-
     //AXI signals
     // read-acquire
     output wire [3:0]  arid,            //fs=0,ld=1
@@ -143,7 +121,7 @@ reg     [`EXReg_BUS_LEN - 1:0]  EXreg;
 reg                             MEMreg_valid;
 reg     [`MEMReg_BUS_LEN - 1:0] MEMreg;
 
-// RegFile
+//-----------------------------------RegFile-----------------------------------
 wire    [4:0]       rf_raddr1, rf_raddr2, rf_waddr;
 wire    [31:0]      rf_rdata1, rf_rdata2, rf_wdata;
 wire                rf_we;
@@ -161,32 +139,144 @@ regfile u_regfile(
 // Exception
     wire    wb_ex, ertn_flush;
 
-// CSR
-wire [79:0] csr_ctrl;
-wire [31:0] csr_rvalue;
-wire [31:0] ex_entry;
-wire [31:0] era_pc;
-wire has_int;
+//-----------------------------------TLB-----------------------------------
+    wire [18:0]                 s0_vppn;
+    wire                        s0_va_bit12;
+    wire [9:0]                  s0_asid;
+    wire                        s0_found;
+    wire [$clog2(TLBNUM) - 1:0] s0_index;
+    wire [19:0]                 s0_ppn;
+    wire [5:0]                  s0_ps;
+    wire [1:0]                  s0_plv;
+    wire [1:0]                  s0_mat;
+    wire                        s0_d;
+    wire                        s0_v;
 
-csr u_csr(
+    // Port 1 (For Load/Store/invtlb)
+    wire [18:0]                 s1_vppn;
+    wire                        s1_va_bit12;
+    wire [9:0]                  s1_asid;
+    wire                        s1_found;
+    wire [$clog2(TLBNUM - 1):0] s1_index;
+    wire [19:0]                 s1_ppn;
+    wire [5:0]                  s1_ps;
+    wire [1:0]                  s1_plv;
+    wire [1:0]                  s1_mat;
+    wire                        s1_d;
+    wire                        s1_v;
+    wire                        invtlb_valid;        // INVTLB opcode
+    wire [4:0]                  invtlb_op;
+
+    // Write Port 
+    wire                        we;
+    wire [$clog2(TLBNUM) - 1:0] w_index;
+    wire                        w_e;
+    wire [18:0]                 w_vppn;
+    wire [5:0]                  w_ps;
+    wire [9:0]                  w_asid;
+    wire                        w_g;
+    wire [19:0]                 w_ppn0;
+    wire [1:0]                  w_plv0;
+    wire [1:0]                  w_mat0;
+    wire                        w_d0;
+    wire                        w_v0;
+    wire [19:0]                 w_ppn1;
+    wire [1:0]                  w_plv1;
+    wire [1:0]                  w_mat1;
+    wire                        w_d1;
+    wire                        w_v1;
+
+    // Read Port
+    wire [$clog2(TLBNUM) - 1:0] r_index;
+    wire                        r_e;
+    wire [18:0]                 r_vppn;
+    wire [5:0]                  r_ps;
+    wire [9:0]                  r_asid;
+    wire                        r_g;
+    wire [19:0]                 r_ppn0;
+    wire [1:0]                  r_plv0;
+    wire [1:0]                  r_mat0;
+    wire                        r_d0;
+    wire                        r_v0;
+    wire [19:0]                 r_ppn1;
+    wire [1:0]                  r_plv1;
+    wire [1:0]                  r_mat1;
+    wire                        r_d1;
+    wire                        r_v1;
+
+    tlb u_tlb(
         .clk(aclk),
-        .reset(reset),
-
-        // inst interface
-        .csr_ctrl(csr_ctrl),
-        .csr_rvalue(csr_rvalue),
-        
-        // Request inst valid
-        .valid(MEMreg_valid),
-
-        // circuit interface
-        .CSR_in_bus(CSR_in_bus),
-        .ex_entry(ex_entry),
-        .era_pc(era_pc),
-        .has_int(has_int)
+        // Fetch
+        .s0_vppn(s0_vppn),      .s0_va_bit12(s0_va_bit12),  .s0_asid(s0_asid),
+        .s0_found(s0_found),    .s0_index(s0_index),        .s0_ppn(s0_ppn),
+        .s0_ps(s0_ps),          .s0_plv(s0_plv),            .s0_mat(s0_mat),
+        .s0_d(s0_d),            .s0_v(s0_v),
+        // Load Stor INVTLB
+        .s1_vppn(s1_vppn),      .s1_va_bit12(s1_va_bit12),  .s1_asid(s1_asid),
+        .s1_found(s1_found),    .s1_index(s1_index),        .s1_ppn(s1_ppn),
+        .s1_ps(s1_ps),          .s1_plv(s1_plv),            .s1_mat(s1_mat),
+        .s1_d(s1_d),            .s1_v(s1_v),
+        // Write Port
+        .we(we),                .w_index(w_index),          .w_e(w_e),
+        .w_vppn(w_vppn),        .w_ps(w_ps),                .w_asid(w_asid),
+        .w_g(w_g),              .w_ppn0(w_ppn0),            .w_plv0(w_plv0),
+        .w_mat0(w_mat0),        .w_d0(w_d0),                .w_v0(w_v0),
+        .w_ppn1(w_ppn1),        .w_plv1(w_plv1),            .w_mat1(w_mat1),
+        .w_d1(w_d1),            .w_v1(w_v1),
+        // Read Port
+        .r_index(r_index),      .r_e(r_e),                  .r_vppn(r_vppn),
+        .r_ps(r_ps),            .r_asid(r_asid),            .r_g(r_g),
+        .r_ppn0(r_ppn0),        .r_plv0(r_plv0),            .r_mat0(r_mat0),
+        .r_d0(r_d0),            .r_v0(r_v0),                .r_ppn1(r_ppn1),
+        .r_plv1(r_plv1),        .r_mat1(r_mat1),            .r_d1(r_d1),
+        .r_v1(r_v1)
     );
 
-// AXI convert
+//-----------------------------------CSR-----------------------------------
+    wire [79:0] csr_ctrl;
+    wire [31:0] csr_rvalue;
+    wire [31:0] ex_entry;
+    wire [31:0] era_pc;
+    wire has_int;
+
+    wire        tlbsrch_req, tlbrd_req, tlbfill_req, tlbwr_req;
+    
+    csr u_csr(
+            .clk(aclk),
+            .reset(reset),
+    
+            // inst interface
+            .csr_ctrl(csr_ctrl),
+            .csr_rvalue(csr_rvalue),
+            
+            // Request inst valid
+            .valid(MEMreg_valid),
+    
+            // circuit interface
+            .CSR_in_bus(CSR_in_bus),
+            .ex_entry(ex_entry),
+            .era_pc(era_pc),
+            .has_int(has_int),
+
+            // TLB ports
+            .tlbsrch_req(tlbsrch_req),  .tlbsrch_hit(s1_found), .tlbsrch_index(s1_index),
+            .tlbrd_req(tlbrd_req),      .r_index(r_index),      .r_e(r_e),
+            .r_vppn(r_vppn),            .r_ps(r_ps),            .r_asid(r_asid),
+            .r_g(r_g),                  .r_ppn0(r_ppn0),        .r_plv0(r_plv0),
+            .r_mat0(r_mat0),            .r_d0(r_d0),            .r_v0(r_v0),
+            .r_ppn1(r_ppn1),            .r_plv1(r_plv1),        .r_mat1(r_mat1),
+            .r_d1(r_d1),                .r_v1(r_v1),
+            .tlbwr_req(tlbwr_req),      .tlbfill_req(tlbfill_req),
+            .we(we),                    .w_index(w_index),      .w_e(w_e),
+            .w_vppn(w_vppn),            .w_ps(w_ps),            .w_asid(w_asid),
+            .w_g(w_g),                  .w_ppn0(w_ppn0),        .w_plv0(w_plv0),
+            .w_mat0(w_mat0),            .w_d0(w_d0),            .w_v0(w_v0),
+            .w_ppn1(w_ppn1),            .w_plv1(w_plv1),        .w_mat1(w_mat1),
+            .w_d1(w_d1),                .w_v1(w_v1)
+        );
+    
+
+//-----------------------------------AXI convert-----------------------------------
 wire        inst_sram_req;
 wire        inst_sram_wr;
 wire [1:0]  inst_sram_size;
@@ -270,7 +360,7 @@ AXI_convert AXI_convert(
                 .bready(bready)
             );
 
-// Data Harzard Detect
+//-----------------------------------Data Harzard Detect-----------------------------------
 wire    [31:0]  addr1_forward, addr2_forward;
 wire            pause, addr1_occur, addr2_occur;
 
@@ -294,7 +384,7 @@ wire ex_ex = | EXreg_bus[238:223];
 wire mem_ex = | MEMreg_bus[167:152];
 wire st_disable = ex_ex | mem_ex | wb_ex;
 
-// Pipeline states
+//-----------------------------------Pipeline states-----------------------------------
 
 /***************************************************
     Hint:
@@ -328,7 +418,12 @@ IF  u_IF(
         .wb_ex(wb_ex),
         .ex_entry(ex_entry),
         .ertn_flush(ertn_flush),
-        .era_pc(era_pc)
+        .era_pc(era_pc),
+
+        // TLB ports
+        .s0_vppn(s0_vppn),      .s0_va_bit12(s0_va_bit12),
+        .s0_asid(s0_asid),      .s0_found(s0_found),        .s0_index(s0_index),
+        .s0_ppn(s0_ppn),        .s0_ps(s0_ps),              .s0_plv(s0_mat),
     );
 
 // ID

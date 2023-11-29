@@ -51,24 +51,44 @@
 `define CSR_DMW1        14'h181
 
 // CSR bits
-`define CSR_CRMD_PLV    1:0
-`define CSR_CRMD_IE     2
-`define CSR_CRMD_DA     3
-`define CSR_CRMD_PG     4
-`define CSR_CRMD_DATF   6:5
-`define CSR_CRMD_DATM   8:7
-`define CSR_PRMD_PPLV   1:0
-`define CSR_PRMD_PIE    2
-`define CSR_ECFG_LIE    12:0
-`define CSR_ESTAT_IS10  1:0
-`define CSR_ERA_PC      31:0
-`define CSR_EENTRY_VA   31:6
-`define CSR_SAVE_DATA   31:0
-`define CSR_TICLR_CLR   0
-`define CSR_TID_TID     31:0
-`define CSR_TCFG_EN     0
-`define CSR_TCFG_PERIOD 1
-`define CSR_TCFG_INITV  31:2
+`define CSR_CRMD_PLV        1:0
+`define CSR_CRMD_IE         2
+`define CSR_CRMD_DA         3
+`define CSR_CRMD_PG         4
+`define CSR_CRMD_DATF       6:5
+`define CSR_CRMD_DATM       8:7
+`define CSR_PRMD_PPLV       1:0
+`define CSR_PRMD_PIE        2
+`define CSR_ECFG_LIE        12:0
+`define CSR_ESTAT_IS10      1:0
+`define CSR_ERA_PC          31:0
+`define CSR_EENTRY_VA       31:6
+`define CSR_SAVE_DATA       31:0
+`define CSR_TICLR_CLR       0
+`define CSR_TID_TID         31:0
+`define CSR_TCFG_EN         0
+`define CSR_TCFG_PERIOD     1
+`define CSR_TCFG_INITV      31:2
+`define CSR_TLBIDX_INDEX    3:0                 // n = log2(TLBNUM) = log2(16) = 4
+`define CSR_TLBIDX_PS       29:24
+`define CSR_TLBIDX_NE       31
+`define CSR_TLBEHI_VPPN     31:13
+`define CSR_TLBELO_V        0
+`define CSR_TLBELO_D        1
+`define CSR_TLBELO_PLV      3:2
+`define CSR_TLBELO_MAT      5:4
+`define CSR_TLBELO_G        6
+`define CSR_TLBELO_PPN      31:8
+`define CSR_ASID_ASID       9:0
+`define CSR_ASID_ASIDBITS   23:16
+`define CSR_PGDH_BASE       31:12               // GRLEN - 1:12
+`define CSR_PGD_BASE        31:12               // GRLEN - 1:12
+`define CSR_TLBRENTRY_PA    31:6
+`define CSR_DMW_PLV0        0
+`define CSR_DMW_PLV3        3
+`define CSR_DMW_MAT         5:4
+`define CSR_DMW_PSEG        27:25
+`define CSR_DMW_VSEG        31:29
 
 // WB to CSR bus
 `define WB2CSR_LEN      81          /* = {ertn_flush, wb_ex, wb_ecode[5:0], wb_esubcode[8:0], wb_pc[31:0], wb_vaddr[31:0]} */
@@ -109,3 +129,5 @@
 `define EBUS_FPD          4'd13
 `define EBUS_FPE          4'd14
 `define EBUS_TLBR         4'd15
+
+`define TLBNUM              16
