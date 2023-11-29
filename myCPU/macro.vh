@@ -1,17 +1,21 @@
 `define BR_BUS_LEN      34
 
-`define IFReg_BUS_LEN   80      /* IF2ID    = {ebus_end, inst, pc} */
+`define IFReg_BUS_LEN   81      /* IF2ID    = {ebus_end, inst, pc, refetch_tag} */
 
 `define ID2EX_LEN       96      /* ID2EX    = {rdcntv_op, ebus_end, alu_op, alu_src1, alu_src2, mul, div} */
 `define ID2MEM_LEN      41      /* ID2MEM   = {rkd_value, mem_en, st_ctrl, ld_ctrl} */
 `define ID2WB_LEN       122     /* ID2WB    = {pause_int_detect, ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc} */
-`define IDReg_BUS_LEN   259     /* = {ID2EX, ID2MEM, ID2WB} */
+`define ID_TLB_LEN      15      /* IDTLB    = {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, invtlb_valid, invtlb_op, refetch_detect, tlbsrch_pause_detect, refetch_tag}*/
+`define IDReg_BUS_LEN   274     /* = {ID2EX, ID2MEM, ID2WB, ID_TLB} */
 
 `define EX2MEM_LEN      119     /* EX2MEM   = {wait_data_ok, ebus_end, mul, mul_result, EX_result, rdk_value, ld_ctrl}*/
 `define EX2WB_LEN       122
-`define EXReg_BUS_LEN   241     /* = {EXreg_2MEM, EXreg_2WB}; */
+`define EX_TLB_LEN      12      /* EXTLB    = {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, refetch_detect, tlbsrch_pause_detect, refetch_tag} */
+`define EXReg_BUS_LEN   253     /* = {EXreg_2MEM, EXreg_2WB, EXTLB}; */
 
-`define MEMReg_BUS_LEN  169     /* MEM2WB  = {pause_int_detect, ebus_end, ertn_flush, csr_ctrl, res_from_csr, MEM_final_result, rf_we, rf_waddr, pc}*/
+`define MEM_TLB_LEN     12      /* MEMTLB   = {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, refetch_detect, tlbsrch_pause_detect, refetch_tag}*/
+`define MEM2WB_LEN      169     /* MEM2WB   = {pause_int_detect, ebus_end, ertn_flush, csr_ctrl, res_from_csr, MEM_final_result, rf_we, rf_waddr, pc}*/
+`define MEMReg_BUS_LEN  181     /* = {MEM2wb, MEMTLB} */
 
 // Data Forward Bypass
 `define EX_BYPASS_LEN   42
@@ -91,7 +95,7 @@
 `define CSR_DMW_VSEG        31:29
 
 // WB to CSR bus
-`define WB2CSR_LEN      81          /* = {ertn_flush, wb_ex, wb_ecode[5:0], wb_esubcode[8:0], wb_pc[31:0], wb_vaddr[31:0]} */
+`define WB2CSR_LEN      90          /* = {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, ertn_flush, wb_ex, wb_ecode[5:0], wb_esubcode[8:0], wb_pc[31:0], wb_vaddr[31:0]} */
 
 // CSR Exception Code
 `define ECODE_INT         6'h00

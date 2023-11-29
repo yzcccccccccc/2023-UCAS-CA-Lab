@@ -4,8 +4,8 @@
 
 TLB format:
 1) comparing part
-    |       VPNN        |   PS  |   G   |   ASID    |   E   |
-    31                  18      12      11          1       0
+    |       VPPN        |   PS  |   G   |   ASID    |   E   |
+    35                  18      12      11          1       0
 
     E:      1 bit, mark the existence of the PTE
     ASID:   10 bits, kinda like pid?
@@ -18,7 +18,7 @@ TLB format:
 2) converting part
     |       PPN0        |   PLV0    |   MAT0    |   D0  |   V0  |
     |       PPN1        |   PLV1    |   MAT1    |   D1  |   V1  |
-    31                  6           4           2       1       0
+    25                  6           4           2       1       0
 
     V:      1 bit. valid. 1 stands for valid and accessed
     D:      1 bit. dirty. 1 stands for existing dirty data within

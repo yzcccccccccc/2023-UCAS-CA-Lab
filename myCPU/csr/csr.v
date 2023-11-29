@@ -18,12 +18,6 @@ module csr(
     output  wire                    has_int,
 
     // TLB ports
-    input   wire            tlbsrch_req,
-    input   wire            tlbsrch_hit,
-    input   wire [3:0]      tlbsrch_index,
-
-    input   wire            tlbrd_req,
-    output  wire [3:0]      r_index,
     input   wire            r_e,
     input   wire [18:0]     r_vppn,
     input   wire [5:0]      r_ps,
@@ -40,8 +34,6 @@ module csr(
     input   wire            r_d1,
     input   wire            r_v1
 
-    input   wire            tlbwr_req,
-    input   wire            tlbfill_req,
     output  wire            we,
     output  wire [3:0]      w_index,
     output  wire            w_e,
@@ -72,7 +64,9 @@ wire [5:0]  wb_ecode;
 wire [8:0]  wb_esubcode;
 wire [31:0] wb_pc;
 wire [31:0] wb_vaddr;
-assign {ertn_flush, wb_ex, wb_ecode, wb_esubcode, wb_pc, wb_vaddr} = CSR_in_bus;
+wire        tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit;
+wire [3:0]  tlbsrch_index;
+assign {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, ertn_flush, wb_ex, wb_ecode, wb_esubcode, wb_pc, wb_vaddr} = CSR_in_bus;
 
 wire        csr_re_tmp, csr_we_tmp, csr_re, csr_we;
 wire [13:0] csr_num;

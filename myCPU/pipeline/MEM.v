@@ -24,10 +24,13 @@ module MEM(
        output  wire [`MEM_BYPASS_LEN - 1:0]    MEM_bypass_bus,
 
        // MEMReg bus
-       output  wire                            MEMreg_valid,
-       output  wire [`MEMReg_BUS_LEN - 1:0]    MEMreg_bus,
+       output   wire                            MEMreg_valid,
+       output   wire [`MEMReg_BUS_LEN - 1:0]    MEMreg_bus,
 
-       output wire ertn_flush
+       output   wire    ertn_flush,
+
+       output   wire    refetch,
+       output   wire    tlbsrch_pause
 );
 
 // ebus
@@ -37,7 +40,8 @@ wire [15:0] ebus_end;
 // EXreg_bus Decode
 wire    [`EX2MEM_LEN - 1:0]     EX2MEM_bus;
 wire    [`EX2WB_LEN - 1:0]      EX2WB_bus;
-assign  {EX2MEM_bus, EX2WB_bus} = EXreg_bus;
+wire    [`EX_TLB_LEN - 1:0]     EX_TLB_bus;
+assign  {EX2MEM_bus, EX2WB_bus, EX_TLB_bus} = EXreg_bus;
 
 wire    [31:0]  mul_result, EX_result, rkd_value;
 wire    [4:0]   ld_ctrl;            // = {inst_ld_w, inst_ld_b, inst_ld_bu, inst_ld_h, inst_ld_hu}
@@ -53,6 +57,11 @@ wire            res_from_mem;
 wire    [4:0]   rf_waddr;
 wire    [31:0]  pc;
 assign  {pause_int_detect, ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc} = EX2WB_bus;
+
+wire            tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit;
+wire    [3:0]   tlbsrch_index;
+wire            refetch_detect, tlbsrch_pause_detect, refetch_tag;
+assign  {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, refetch_detect, tlbsrch_pause_detect, refetch_tag}  = EX_TLB_bus;
 
 // Define Signals
 wire [31:0]     data;
@@ -90,6 +99,10 @@ assign MEM_ready_go         = (valid & recv_data_from_sram) ? data_sram_data_ok 
 // data harzard bypass
 assign MEM_bypass_bus       = {pause_int_detect & MEMreg_valid, res_from_csr, rf_waddr, rf_we & valid,res_from_mem & valid, MEM_final_result};
 
+// refetch and tlbsrch_pause
+assign refetch          = refetch_detect & valid;
+assign tlbsrch_pause    = tlbsrch_pause_detect & valid;
+
 // MEMreg_bus
 reg     has_reset;
 always @(posedge clk) begin
@@ -99,8 +112,14 @@ always @(posedge clk) begin
         if (reset)
             has_reset   <= 1;
 end
+
+wire    [`MEM_TLB_LEN - 1:0]    MEMreg_TLB;
+wire    [`MEM2WB_LEN - 1:0]     MEMreg_WB;
+
 assign MEMreg_valid         = valid  & ~(reset | has_reset);
-assign MEMreg_bus           = {pause_int_detect, ebus_end, ertn_flush, csr_ctrl, res_from_csr, MEM_final_result, rf_we, rf_waddr, pc};
+assign MEMreg_WB            = {pause_int_detect, ebus_end, ertn_flush, csr_ctrl, res_from_csr, MEM_final_result, rf_we, rf_waddr, pc};
+assign MEMreg_TLB           = {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, refetch_detect, tlbsrch_pause_detect, refetch_tag};
+assign MEMreg_bus           = {MEMreg_WB, MEMreg_TLB};
 
 /*******************************************************************
 2023.11.13 czxx

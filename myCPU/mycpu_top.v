@@ -238,8 +238,6 @@ regfile u_regfile(
     wire [31:0] ex_entry;
     wire [31:0] era_pc;
     wire has_int;
-
-    wire        tlbsrch_req, tlbrd_req, tlbfill_req, tlbwr_req;
     
     csr u_csr(
             .clk(aclk),
@@ -259,14 +257,12 @@ regfile u_regfile(
             .has_int(has_int),
 
             // TLB ports
-            .tlbsrch_req(tlbsrch_req),  .tlbsrch_hit(s1_found), .tlbsrch_index(s1_index),
-            .tlbrd_req(tlbrd_req),      .r_index(r_index),      .r_e(r_e),
+            .r_index(r_index),          .r_e(r_e),
             .r_vppn(r_vppn),            .r_ps(r_ps),            .r_asid(r_asid),
             .r_g(r_g),                  .r_ppn0(r_ppn0),        .r_plv0(r_plv0),
             .r_mat0(r_mat0),            .r_d0(r_d0),            .r_v0(r_v0),
             .r_ppn1(r_ppn1),            .r_plv1(r_plv1),        .r_mat1(r_mat1),
             .r_d1(r_d1),                .r_v1(r_v1),
-            .tlbwr_req(tlbwr_req),      .tlbfill_req(tlbfill_req),
             .we(we),                    .w_index(w_index),      .w_e(w_e),
             .w_vppn(w_vppn),            .w_ps(w_ps),            .w_asid(w_asid),
             .w_g(w_g),                  .w_ppn0(w_ppn0),        .w_plv0(w_plv0),
@@ -384,6 +380,16 @@ wire ex_ex = | EXreg_bus[238:223];
 wire mem_ex = | MEMreg_bus[167:152];
 wire st_disable = ex_ex | mem_ex | wb_ex;
 
+//-----------------------------------Refetch and TLBSRCH pause-----------------------------------
+// exp18
+wire            to_IF_refetch, from_ID_refetch, from_EX_refetch, from_MEM_refetch, from_WB_refetch;
+wire            refetch_flush;
+wire    [31:0]  refetch_pc;
+wire            to_EX_tlbsrch_pause, from_MEM_tlbsrch_pause, from_WB_tlbsrch_pause;
+
+assign  to_IF_refetch       = from_ID_refetch | from_EX_refetch | from_MEM_refetch | from_WB_refetch;
+assign  to_EX_tlbsrch_pause = from_MEM_tlbsrch_pause | from_WB_tlbsrch_pause;
+
 //-----------------------------------Pipeline states-----------------------------------
 
 /***************************************************
@@ -420,10 +426,16 @@ IF  u_IF(
         .ertn_flush(ertn_flush),
         .era_pc(era_pc),
 
+        // refetch
+        .refetch(to_IF_refetch),
+        .refetch_flush(refetch_flush),
+        .refetch_pc(refetch_pc),
+
         // TLB ports
         .s0_vppn(s0_vppn),      .s0_va_bit12(s0_va_bit12),
         .s0_asid(s0_asid),      .s0_found(s0_found),        .s0_index(s0_index),
-        .s0_ppn(s0_ppn),        .s0_ps(s0_ps),              .s0_plv(s0_mat),
+        .s0_ppn(s0_ppn),        .s0_ps(s0_ps),              .s0_plv(s0_plv),
+        .s0_mat(s0_mat),        .s0_d(s0_d),                .s0_v(s0_v)
     );
 
 // ID
@@ -446,6 +458,8 @@ ID  u_ID(
 
         .IDreg_valid(toIDreg_valid_bus),
         .IDreg_bus(IDreg_bus),
+
+        .refetch(from_ID_refetch),
 
         .pause(pause),
         .addr1_forward(addr1_forward),
@@ -485,6 +499,15 @@ EX  u_EX(
         .counter_value(counter_value),
 
         .ertn_cancel(MEM_ertn||WB_ertn)
+        .refetch(from_EX_refetch),
+        .tlbsrch_pause(to_EX_tlbsrch_pause),
+
+        // TLB ports
+        .s1_vppn(s1_vppn),  .s1_va_bit12(s1_va_bit12),
+        .s1_asid(s1_asid),  .s1_found(s1_found),    .s1_index(s1_index),
+        .s1_ppn(s1_ppn),    .s1_ps(s1_ps),          .s1_plv(s1_plv),
+        .s1_mat(s1_mat),    .s1_d(s1_d),            .s1_v(s1_v),
+        .invtlb_valid(invtlb_valid),                .invtlb_op(invtlb_op)
     );
 
 // MEM
@@ -505,6 +528,10 @@ MEM u_MEM(
         .data_sram_addr_ok(data_sram_addr_ok),
         .data_sram_data_ok(data_sram_data_ok),
         .data_sram_rdata(data_sram_rdata),
+        
+        .refetch(from_MEM_refetch),
+        .tlbsrch_pause(from_MEM_tlbsrch_pause),
+
         .EX_ready_go(EX_ready_go),
         .WB_allow_in(WB_allow_in),
         .MEM_allow_in(MEM_allow_in),
@@ -529,6 +556,12 @@ WB  u_WB(
         .debug_wb_rf_we(debug_wb_rf_we),
         .debug_wb_rf_wnum(debug_wb_rf_wnum),
         .debug_wb_rf_wdata(debug_wb_rf_wdata),
+
+        .refetch(from_WB_refetch),
+        .tlbsrch_pause(from_WB_tlbsrch_pause),
+        .refetch_flush(refetch_flush),
+        .refetch_pc(refetch_pc),
+
         .MEM_ready_go(MEM_ready_go),
         .WB_ready_go(WB_ready_go),
         .WB_allow_in(WB_allow_in),
@@ -545,7 +578,7 @@ assign ertn_flush = CSR_in_bus[80];
 // IFreg
 always @(posedge aclk)
 begin
-    if (reset||wb_ex||ertn_flush)
+    if (reset||wb_ex||ertn_flush||refetch_flush)
     begin
         IFreg_valid     <= 0;
         IFreg           <= 0;
@@ -570,7 +603,7 @@ end
 // IDreg
 always @(posedge aclk)
 begin
-    if (reset||wb_ex||ertn_flush)
+    if (reset||wb_ex||ertn_flush||refetch_flush)
     begin
         IDreg_valid     <= 0;
         IDreg           <= 0;
@@ -595,7 +628,7 @@ end
 // EXreg
 always @(posedge aclk)
 begin
-    if (reset||wb_ex||ertn_flush)
+    if (reset||wb_ex||ertn_flush||refetch_flush)
     begin
         EXreg_valid     <= 0;
         EXreg           <= 0;
@@ -620,7 +653,7 @@ end
 // MEMreg
 always @(posedge aclk)
 begin
-    if (reset||wb_ex||ertn_flush)
+    if (reset||wb_ex||ertn_flush||refetch_flush)
     begin
         MEMreg_valid    <= 0;
         MEMreg          <= 0;

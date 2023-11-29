@@ -36,11 +36,17 @@ module EX(
     output  wire [1:0]      rdcntv_op,
 
     input   wire            ertn_cancel,
+    output  wire            refetch,
+    input   wire            tlbsrch_pause,
+
+    // CSR value
+    input   wire [31:0]     csr_asid,
+    input   wire [31:0]     csr_tlbehi,
 
     // TLB ports (s1_ && invtlb_)
     output  wire [18:0]     s1_vppn,
     output  wire            s1_va_bit12,
-    output  wire            s1_asid,
+    output  wire [9:0]      s1_asid,
     input   wire            s1_found,
     input   wire [3:0]      s1_index,
     input   wire [19:0]     s1_ppn,
@@ -49,7 +55,7 @@ module EX(
     input   wire [1:0]      s1_mat,
     input   wire            s1_d,
     input   wire            s1_v,
-    output  wire            invtlb_valie,
+    output  wire            invtlb_valid,
     output  wire [4:0]      invtlb_op
 );
 
@@ -67,8 +73,9 @@ wire [15:0] ebus_end;
 wire    [`ID2EX_LEN - 1:0]  ID2EX_bus;
 wire    [`ID2MEM_LEN - 1:0] ID2MEM_bus;
 wire    [`ID2WB_LEN - 1:0]  ID2WB_bus;
+wire    [`ID_TLB_LEN - 1:0] ID_TLB_bus;
 
-assign  {ID2EX_bus, ID2MEM_bus, ID2WB_bus} = IDreg_bus;
+assign  {ID2EX_bus, ID2MEM_bus, ID2WB_bus, ID_TLB_bus} = IDreg_bus;
 
 wire    [11:0]  alu_op;
 wire    [31:0]  alu_src1, alu_src2;
@@ -88,11 +95,14 @@ wire            res_from_mem;
 wire    [4:0]   rf_waddr;
 wire    [31:0]  pc;
 
-wire       res_from_rdcntv;
+wire            res_from_rdcntv;
+wire            tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit;
+wire            refetch_detect, tlbsrch_pause_detect, refetch_tag;
 
 assign  {rdcntv_op, ebus_init, alu_op, alu_src1, alu_src2, mul, div}      = ID2EX_bus;
 assign  {rkd_value, mem_en, st_ctrl, ld_ctrl}       = ID2MEM_bus;
 assign  {pause_int_detect, ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc}         = ID2WB_bus;
+assign  {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, invtlb_valid, invtlb_op, refetch_detect, tlbsrch_pause_detect, refetch_tag}    = ID_TLB_bus;
 
 // Define Signals
 wire [31:0]         alu_result;
@@ -101,6 +111,7 @@ wire                div_done;
 
 wire    [`EX2MEM_LEN - 1:0] EXreg_2MEM;
 wire    [`EX2WB_LEN - 1:0]  EXreg_2WB;
+wire    [`EX_TLB_LEN - 1:0] EXreg_TLB;
 
 wire    [4:0]       EX_rf_waddr;
 wire                EX_rf_we, EX_res_from_mem;
@@ -177,6 +188,33 @@ assign data_sram_wr     = (|st_ctrl) & ~(|ld_ctrl);
 assign data_sram_wdata  = st_data;
 assign data_sram_wstrb  = mem_we & {4{valid}};
 
+// exp18 TLB
+wire [9:0]  invtlb_asid;
+wire [18:0] invtlb_vppn, tlbsrch_vppn, ls_vppn;
+wire        invtlb_vabit12, tlbsrch_vabit12, ls_vabit12;
+wire [3:0]  tlbsrch_index;
+
+assign      invtlb_asid     = alu_src1[9:0];                        // rj[9:0]
+assign      invtlb_vppn     = alu_src2[31:13];                      // rk[31:13]
+assign      invtlb_vabit12  = alu_src2[12];
+
+assign      tlbsrch_vppn    = csr_tlbehi[`CSR_TLBEHI_VPPN];
+assign      tlbsrch_vabit12 = csr_tlbehi[12];
+
+assign      ls_vppn         = alu_result[31:13];
+assign      ls_vabit12      = alu_result[12];
+
+assign  s1_vppn         = tlbsrch_req ? tlbsrch_vppn
+                        : invtlb_valid ? invtlb_vppn
+                        : ls_vppn;
+assign  s1_va_bit12     = tlbsrch_req ? tlbsrch_vabit12 
+                        : invtlb_valid ? invtlb_vabit12
+                        : ls_vabit12;
+assign  s1_asid         = invtlb_valid ? invtlb_asid : csr_asid[`CSR_ASID_ASID];
+
+assign  tlbsrch_index   = s1_index;
+
+
 // exp13 rdcntv
 assign res_from_rdcntv = |rdcntv_op;
 
@@ -193,12 +231,19 @@ always @(posedge clk) begin
         if (reset)
             has_reset   <= 1;
 end
+
 wire   wait_data_ok;
 assign wait_data_ok     = data_sram_req;
+assign tlbsrch_hit      = s1_found;
+
 assign EXreg_valid      = valid & ~(reset | has_reset);
 assign EXreg_2MEM       = {wait_data_ok, ebus_end, mul, mul_result, EX_result, rkd_value, ld_ctrl};
 assign EXreg_2WB        = {pause_int_detect, ertn_flush & EXreg_valid, csr_ctrl, res_from_csr, rf_we, EX_res_from_mem, rf_waddr, pc};
-assign EXreg_bus        = {EXreg_2MEM, EXreg_2WB};
+assign EXreg_TLB        = {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, refetch_detect, tlbsrch_pause_detect, refetch_tag};
+assign EXreg_bus        = {EXreg_2MEM, EXreg_2WB, EXreg_TLB};
+
+// refetch (to IF)
+assign refetch          = refetch_detect & valid;
 
 // Data Harzard Bypass
 assign  EX_rf_waddr         = rf_waddr;
@@ -213,7 +258,8 @@ assign  EX_bypass_bus       = {pause_int_detect & EXreg_valid, res_from_csr, EX_
 // control signals
 assign EX_ready_go      = (div & valid) ? div_done
                         : data_sram_req ? data_sram_addr_ok
+                        : tlbsrch_req ? ~tlbsrch_pause
                         : 1;
-assign EX_allow_in      = !EXreg_valid | MEM_allow_in & EX_ready_go;
+assign EX_allow_in      = ~EXreg_valid | MEM_allow_in & EX_ready_go;
 
 endmodule
