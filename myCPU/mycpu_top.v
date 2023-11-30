@@ -137,8 +137,11 @@ regfile u_regfile(
         );
 
 // Exception
-    wire    WB_ex, ertn_flush;
-    wire    EX_ex, MEM_ex;
+    wire    WB_ex, ertn_flush, EX_ex, MEM_ex;
+
+// Flush
+// [2023.11.30] yzcc: flush the pipelines when: WB_ex, ertn_flush, refetch_flush
+    wire        flush;
 
 //-----------------------------------TLB-----------------------------------
     wire [18:0]                     s0_vppn;
@@ -367,7 +370,7 @@ wire    [31:0]  addr1_forward, addr2_forward;
 wire            pause, addr1_occur, addr2_occur;
 
 data_harzard_detector u_dhd(
-                          .reset(reset || WB_ex || ertn_flush),
+                          .reset(reset | flush),
                           .rf_raddr1(rf_raddr1),
                           .rf_raddr2(rf_raddr2),
                           .EX_bypass_bus(EX_bypass_bus),
@@ -391,8 +394,11 @@ wire            refetch_flush;
 wire    [31:0]  refetch_pc;
 wire            to_EX_tlbsrch_pause, from_MEM_tlbsrch_pause, from_WB_tlbsrch_pause;
 
-assign  to_IF_refetch       = from_ID_refetch | from_EX_refetch | from_MEM_refetch | from_WB_refetch;
+assign  to_IF_refetch       = (from_ID_refetch | from_EX_refetch | from_MEM_refetch | from_WB_refetch) & ~flush;
 assign  to_EX_tlbsrch_pause = from_MEM_tlbsrch_pause | from_WB_tlbsrch_pause;
+
+// Flush
+assign  flush       = reset | WB_ex | ertn_flush | refetch_flush;
 
 //-----------------------------------Pipeline states-----------------------------------
 
@@ -445,7 +451,8 @@ IF  u_IF(
 // ID
 ID  u_ID(
         .clk(aclk),
-        .reset(reset||WB_ex||ertn_flush||refetch_flush),
+        .reset(reset),
+        .flush(flush),
         .timecnt(timecnt),
         .valid(IFreg_valid),
         .IFreg_bus(IFreg),
@@ -476,7 +483,8 @@ ID  u_ID(
 // EX
 EX  u_EX(
         .clk(aclk),
-        .reset(reset||WB_ex||ertn_flush||refetch_flush),
+        .reset(reset),
+        .flush(flush),
         .valid(IDreg_valid),
         .IDreg_bus(IDreg),
         .ID_ready_go(ID_ready_go),
@@ -520,8 +528,8 @@ EX  u_EX(
 // MEM
 MEM u_MEM(
         .clk(aclk),
-        .reset_real(reset),
-        .reset(reset||WB_ex||ertn_flush||refetch_flush),
+        .reset(reset),
+        .flush(flush),
         .valid(EXreg_valid),
         /***************************************************
             Hint:
@@ -585,7 +593,7 @@ assign ertn_flush = CSR_in_bus[80];
 // IFreg
 always @(posedge aclk)
 begin
-    if (reset||WB_ex||ertn_flush||refetch_flush)
+    if (reset | flush)
     begin
         IFreg_valid     <= 0;
         IFreg           <= 0;
@@ -610,7 +618,7 @@ end
 // IDreg
 always @(posedge aclk)
 begin
-    if (reset||WB_ex||ertn_flush||refetch_flush)
+    if (reset | flush)
     begin
         IDreg_valid     <= 0;
         IDreg           <= 0;
@@ -635,7 +643,7 @@ end
 // EXreg
 always @(posedge aclk)
 begin
-    if (reset||WB_ex||ertn_flush||refetch_flush)
+    if (reset | flush)
     begin
         EXreg_valid     <= 0;
         EXreg           <= 0;
@@ -660,7 +668,7 @@ end
 // MEMreg
 always @(posedge aclk)
 begin
-    if (reset||WB_ex||ertn_flush||refetch_flush)
+    if (reset | flush)
     begin
         MEMreg_valid    <= 0;
         MEMreg          <= 0;

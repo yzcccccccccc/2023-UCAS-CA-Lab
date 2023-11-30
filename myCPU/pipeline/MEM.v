@@ -1,8 +1,8 @@
 `include "../macro.vh"
 module MEM(
        input   wire        clk,
-       input   wire        reset_real,
        input   wire        reset,
+       input   wire        flush,
 
        // valid & EXreg_bus
        input   wire                        valid,
@@ -108,19 +108,19 @@ assign tlbsrch_pause    = tlbsrch_pause_detect & valid;
 assign except           = |ebus_end & valid;
 
 // MEMreg_bus
-reg     has_reset;
+reg     has_flush;
 always @(posedge clk) begin
     if (EX_ready_go & MEM_allow_in)
-        has_reset   <= 0;
+        has_flush   <= 0;
     else
-        if (reset)
-            has_reset   <= 1;
+        if (flush)
+            has_flush   <= 1;
 end
 
 wire    [`MEM_TLB_LEN - 1:0]    MEMreg_TLB;
 wire    [`MEM2WB_LEN - 1:0]     MEMreg_WB;
 
-assign MEMreg_valid         = valid  & ~(reset | has_reset);
+assign MEMreg_valid         = valid  & ~(flush | has_flush);
 assign MEMreg_WB            = {pause_int_detect, ebus_end, ertn_flush, csr_ctrl, res_from_csr, MEM_final_result, rf_we, rf_waddr, pc};
 assign MEMreg_TLB           = {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, refetch_detect, tlbsrch_pause_detect, refetch_tag};
 assign MEMreg_bus           = {MEMreg_WB, MEMreg_TLB};
@@ -131,7 +131,7 @@ assign MEMreg_bus           = {MEMreg_WB, MEMreg_TLB};
 ********************************************************************/
 reg [7:0] unfinish_data_cnt;
 always @(posedge clk) begin
-    if (reset_real)
+    if (reset)
         unfinish_data_cnt <= 0;
     else begin
         if (data_sram_req & data_sram_addr_ok & ~data_sram_data_ok)

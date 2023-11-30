@@ -2,6 +2,7 @@
 module EX(
     input   wire        clk,
     input   wire        reset,
+    input   wire        flush,
 
     // valid & IDreg_bus
     input   wire                        valid,
@@ -139,7 +140,7 @@ multiplier u_mul(
 // Divider
 divider u_div(
             .clk        (clk),
-            .reset      (reset),
+            .reset      (reset | flush),
             .div_src1   (alu_src1),
             .div_src2   (alu_src2),
             .div_op     (alu_op[3:0] & {4{valid & div}}),
@@ -226,20 +227,20 @@ assign ebus_end = (|ebus_init) ? ebus_init
               : {{15-`EBUS_ALE{1'b0}}, has_ale, {`EBUS_ALE{1'b0}}} & {16{valid}};
 
 // EXreg_bus
-reg     has_reset;
+reg     has_flush;
 always @(posedge clk) begin
     if (EX_ready_go & MEM_allow_in)
-        has_reset   <= 0;
+        has_flush   <= 0;
     else
-        if (reset)
-            has_reset   <= 1;
+        if (flush)
+            has_flush   <= 1;
 end
 
 wire   wait_data_ok;
 assign wait_data_ok     = data_sram_req;
 assign tlbsrch_hit      = s1_found;
 
-assign EXreg_valid      = valid & ~(reset | has_reset);
+assign EXreg_valid      = valid & ~(flush | has_flush);
 assign EXreg_2MEM       = {wait_data_ok, ebus_end, mul, mul_result, EX_result, rkd_value, ld_ctrl};
 assign EXreg_2WB        = {pause_int_detect, ertn_flush & EXreg_valid, csr_ctrl, res_from_csr, rf_we, EX_res_from_mem, rf_waddr, pc};
 assign EXreg_TLB        = {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, refetch_detect, tlbsrch_pause_detect, refetch_tag};

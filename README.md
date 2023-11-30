@@ -26,5 +26,6 @@
 * 在divider中增加逻辑，当WB级通知需要处理ex或者ertn时，状态机立即切换并发出done信号
 
 ### EXP18
-* 目前规划图：  
-![Alt text](pic/7f302cf378d25e36bed3c99ac44a9a7.jpg)
+* 结构：  
+![Alt text](pic/c22006f17a2dfa13b7e3419e8dcc168.jpg)
+* refetch_flush在IF（preIF）级中当成cancel的情况处理（和ertn一致？）

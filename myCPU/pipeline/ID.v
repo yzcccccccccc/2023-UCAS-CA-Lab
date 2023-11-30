@@ -3,6 +3,7 @@
 module ID(
        input     wire        clk,
        input     wire        reset,
+       input     wire        flush,
 
        // timecnt
        input     wire [63:0] timecnt,
@@ -538,7 +539,7 @@ assign refetch          = refetch_detect & valid & ~has_ine;
 reg br_taken_last;
 always@(posedge clk)
 begin
-    if(reset)
+    if(reset | flush)
        br_taken_last <= 1'b0;
     else
        br_taken_last <= br_taken;
