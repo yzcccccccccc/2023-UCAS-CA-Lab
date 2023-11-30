@@ -205,7 +205,7 @@ assign era_pc = csr_era_pc;
             csr_crmd_pg <= 0;
         end
         else
-            if (wb_ex && wb_ecode == 'ECODE_TLBR) begin
+            if (wb_ex && wb_ecode == `ECODE_TLBR) begin
                 csr_crmd_da <= 1;
                 csr_crmd_pg <= 0;
             end
@@ -586,7 +586,7 @@ assign era_pc = csr_era_pc;
         else
             if (csr_we && csr_num == `CSR_PGDH)
                 csr_pgdh_base       <= csr_wmask[`CSR_PGDH_BASE] & csr_wvalue[`CSR_PGDH_BASE]
-                                    | ~csr_wmast[`CSR_PGDH_BASE] & csr_pgdh_base;
+                                    | ~csr_wmask[`CSR_PGDH_BASE] & csr_pgdh_base;
     end
 
 // PGD

@@ -98,7 +98,7 @@ wire            res_from_csr;
 wire            rf_we;
 wire            res_from_mem;
 wire    [4:0]   rf_waddr;
-wire    [31:0]  pc;
+wire    [31:0]  pc, badv;
 
 wire            res_from_rdcntv;
 wire            tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit;
@@ -285,14 +285,13 @@ always @(posedge clk) begin
             has_flush   <= 1;
 end
 
-wire   wait_data_ok;
-assign wait_data_ok     = data_sram_req;
 assign tlbsrch_hit      = s1_found;
+assign badv             = has_mem_except ? alu_result : pc;
 
 assign EXreg_valid      = valid & ~(flush | has_flush);
-assign EXreg_2MEM       = {wait_data_ok, ebus_end, mul, mul_result, EX_result, rkd_value, ld_ctrl};
+assign EXreg_2MEM       = {ebus_end, mul, mul_result, EX_result, rkd_value, ld_ctrl};
 assign EXreg_2WB        = {pause_int_detect, ertn_flush & EXreg_valid, csr_ctrl, res_from_csr, rf_we, EX_res_from_mem, rf_waddr, pc};
-assign EXreg_TLB        = {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, refetch_detect, tlbsrch_pause_detect, refetch_tag};
+assign EXreg_TLB        = {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, refetch_detect, tlbsrch_pause_detect, refetch_tag, badv};
 assign EXreg_bus        = {EXreg_2MEM, EXreg_2WB, EXreg_TLB};
 
 // refetch (to IF)

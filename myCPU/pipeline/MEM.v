@@ -59,10 +59,11 @@ wire    [4:0]   rf_waddr;
 wire    [31:0]  pc;
 assign  {pause_int_detect, ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc} = EX2WB_bus;
 
+wire    [31:0]  badv;
 wire            tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit;
 wire    [3:0]   tlbsrch_index;
 wire            refetch_detect, tlbsrch_pause_detect, refetch_tag;
-assign  {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, refetch_detect, tlbsrch_pause_detect, refetch_tag}  = EX_TLB_bus;
+assign  {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, refetch_detect, tlbsrch_pause_detect, refetch_tag, badv}   = EX_TLB_bus;
 
 // Define Signals
 wire [31:0]     data;
@@ -122,7 +123,7 @@ wire    [`MEM2WB_LEN - 1:0]     MEMreg_WB;
 
 assign MEMreg_valid         = valid  & ~(flush | has_flush);
 assign MEMreg_WB            = {pause_int_detect, ebus_end, ertn_flush, csr_ctrl, res_from_csr, MEM_final_result, rf_we, rf_waddr, pc};
-assign MEMreg_TLB           = {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, refetch_detect, tlbsrch_pause_detect, refetch_tag};
+assign MEMreg_TLB           = {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, refetch_detect, tlbsrch_pause_detect, refetch_tag, badv};
 assign MEMreg_bus           = {MEMreg_WB, MEMreg_TLB};
 
 /*******************************************************************

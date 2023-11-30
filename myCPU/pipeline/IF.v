@@ -116,10 +116,10 @@ module IF(
     
     wire [5:0]  mem_except;
     reg     IF_has_adef, IF_has_pil, IF_has_pis, IF_has_pif, IF_has_pme, IF_has_ppi, IF_has_tlbr;
-    wire    preIF_has_adef, preIF_has_pil, preIF_has_pis, preIF_has_pme, preIF_has_ppi, preIF_has_tlbr;
+    wire    preIF_has_adef, preIF_has_pil, preIF_has_pis, preIF_has_pif, preIF_has_pme, preIF_has_ppi, preIF_has_tlbr;
 
     assign  preIF_has_adef  = pc_next[1:0] != 2'b0;
-    assign  {IF_has_pil, IF_has_pis, IF_has_pif, IF_has_pme, IF_has_ppi, IF_has_tlbr}   = mem_except;
+    assign  {preIF_has_pil, preIF_has_pis, preIF_has_pif, preIF_has_pme, preIF_has_ppi, preIF_has_tlbr}    = mem_except;
 
     always@(posedge clk)
     begin
@@ -137,7 +137,7 @@ module IF(
             if (preIF_ready_go & IF_allow_in) begin
                 IF_has_adef <= preIF_has_adef;
                 IF_has_pil  <= preIF_has_pil;
-                IF_has_pis  <= preIF_has_pis
+                IF_has_pis  <= preIF_has_pis;
                 IF_has_pif  <= preIF_has_pif;
                 IF_has_pme  <= preIF_has_pme;
                 IF_has_ppi  <= preIF_has_ppi;
@@ -309,7 +309,7 @@ module IF(
         .has_mem_except(preIF_has_mem_except),
         .except(mem_except),
         .pa(pa),
-        .mat(mat),
+        .mat(mat)
     );
 
 //------------------------------------------------------IF------------------------------------------------------
