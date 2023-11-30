@@ -158,7 +158,7 @@ regfile u_regfile(
     wire                            s1_va_bit12;
     wire [9:0]                      s1_asid;
     wire                            s1_found;
-    wire [$clog2(`TLBNUM - 1):0]    s1_index;
+    wire [$clog2(`TLBNUM)-1:0]      s1_index;
     wire [19:0]                     s1_ppn;
     wire [5:0]                      s1_ps;
     wire [1:0]                      s1_plv;

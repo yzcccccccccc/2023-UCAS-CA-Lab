@@ -22,7 +22,7 @@ module csr(
 
     // TLB ports
     input   wire            r_e,
-    input   wire [3:0]      r_index,
+    output  wire [3:0]      r_index,
     input   wire [18:0]     r_vppn,
     input   wire [5:0]      r_ps,
     input   wire [9:0]      r_asid,

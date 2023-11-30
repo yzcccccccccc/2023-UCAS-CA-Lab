@@ -42,7 +42,7 @@ module IF(
     // TLB ports (s0_)
     output  wire [18:0]     s0_vppn,
     output  wire            s0_va_bit12,
-    output  wire            s0_asid,
+    output  wire [9:0]      s0_asid,
     input   wire            s0_found,
     input   wire [3:0]      s0_index,
     input   wire [19:0]     s0_ppn,

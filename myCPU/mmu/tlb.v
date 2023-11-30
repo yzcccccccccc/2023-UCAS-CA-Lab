@@ -55,7 +55,7 @@ module tlb
     input   wire                        s1_va_bit12,
     input   wire [9:0]                  s1_asid,
     output  wire                        s1_found,
-    output  wire [$clog2(TLBNUM - 1):0] s1_index,
+    output  wire [$clog2(TLBNUM)-1:0]   s1_index,
     output  wire [19:0]                 s1_ppn,
     output  wire [5:0]                  s1_ps,
     output  wire [1:0]                  s1_plv,
