@@ -137,72 +137,73 @@ regfile u_regfile(
         );
 
 // Exception
-    wire    wb_ex, ertn_flush;
+    wire    WB_ex, ertn_flush;
+    wire    EX_ex, MEM_ex;
 
 //-----------------------------------TLB-----------------------------------
-    wire [18:0]                 s0_vppn;
-    wire                        s0_va_bit12;
-    wire [9:0]                  s0_asid;
-    wire                        s0_found;
-    wire [$clog2(TLBNUM) - 1:0] s0_index;
-    wire [19:0]                 s0_ppn;
-    wire [5:0]                  s0_ps;
-    wire [1:0]                  s0_plv;
-    wire [1:0]                  s0_mat;
-    wire                        s0_d;
-    wire                        s0_v;
+    wire [18:0]                     s0_vppn;
+    wire                            s0_va_bit12;
+    wire [9:0]                      s0_asid;
+    wire                            s0_found;
+    wire [$clog2(`TLBNUM) - 1:0]    s0_index;
+    wire [19:0]                     s0_ppn;
+    wire [5:0]                      s0_ps;
+    wire [1:0]                      s0_plv;
+    wire [1:0]                      s0_mat;
+    wire                            s0_d;
+    wire                            s0_v;
 
     // Port 1 (For Load/Store/invtlb)
-    wire [18:0]                 s1_vppn;
-    wire                        s1_va_bit12;
-    wire [9:0]                  s1_asid;
-    wire                        s1_found;
-    wire [$clog2(TLBNUM - 1):0] s1_index;
-    wire [19:0]                 s1_ppn;
-    wire [5:0]                  s1_ps;
-    wire [1:0]                  s1_plv;
-    wire [1:0]                  s1_mat;
-    wire                        s1_d;
-    wire                        s1_v;
-    wire                        invtlb_valid;        // INVTLB opcode
-    wire [4:0]                  invtlb_op;
+    wire [18:0]                     s1_vppn;
+    wire                            s1_va_bit12;
+    wire [9:0]                      s1_asid;
+    wire                            s1_found;
+    wire [$clog2(`TLBNUM - 1):0]    s1_index;
+    wire [19:0]                     s1_ppn;
+    wire [5:0]                      s1_ps;
+    wire [1:0]                      s1_plv;
+    wire [1:0]                      s1_mat;
+    wire                            s1_d;
+    wire                            s1_v;
+    wire                            invtlb_valid;        // INVTLB opcode
+    wire [4:0]                      invtlb_op;
 
     // Write Port 
-    wire                        we;
-    wire [$clog2(TLBNUM) - 1:0] w_index;
-    wire                        w_e;
-    wire [18:0]                 w_vppn;
-    wire [5:0]                  w_ps;
-    wire [9:0]                  w_asid;
-    wire                        w_g;
-    wire [19:0]                 w_ppn0;
-    wire [1:0]                  w_plv0;
-    wire [1:0]                  w_mat0;
-    wire                        w_d0;
-    wire                        w_v0;
-    wire [19:0]                 w_ppn1;
-    wire [1:0]                  w_plv1;
-    wire [1:0]                  w_mat1;
-    wire                        w_d1;
-    wire                        w_v1;
+    wire                            we;
+    wire [$clog2(`TLBNUM) - 1:0]    w_index;
+    wire                            w_e;
+    wire [18:0]                     w_vppn;
+    wire [5:0]                      w_ps;
+    wire [9:0]                      w_asid;
+    wire                            w_g;
+    wire [19:0]                     w_ppn0;
+    wire [1:0]                      w_plv0;
+    wire [1:0]                      w_mat0;
+    wire                            w_d0;
+    wire                            w_v0;
+    wire [19:0]                     w_ppn1;
+    wire [1:0]                      w_plv1;
+    wire [1:0]                      w_mat1;
+    wire                            w_d1;
+    wire                            w_v1;
 
     // Read Port
-    wire [$clog2(TLBNUM) - 1:0] r_index;
-    wire                        r_e;
-    wire [18:0]                 r_vppn;
-    wire [5:0]                  r_ps;
-    wire [9:0]                  r_asid;
-    wire                        r_g;
-    wire [19:0]                 r_ppn0;
-    wire [1:0]                  r_plv0;
-    wire [1:0]                  r_mat0;
-    wire                        r_d0;
-    wire                        r_v0;
-    wire [19:0]                 r_ppn1;
-    wire [1:0]                  r_plv1;
-    wire [1:0]                  r_mat1;
-    wire                        r_d1;
-    wire                        r_v1;
+    wire [$clog2(`TLBNUM) - 1:0]    r_index;
+    wire                            r_e;
+    wire [18:0]                     r_vppn;
+    wire [5:0]                      r_ps;
+    wire [9:0]                      r_asid;
+    wire                            r_g;
+    wire [19:0]                     r_ppn0;
+    wire [1:0]                      r_plv0;
+    wire [1:0]                      r_mat0;
+    wire                            r_d0;
+    wire                            r_v0;
+    wire [19:0]                     r_ppn1;
+    wire [1:0]                      r_plv1;
+    wire [1:0]                      r_mat1;
+    wire                            r_d1;
+    wire                            r_v1;
 
     tlb u_tlb(
         .clk(aclk),
@@ -211,11 +212,12 @@ regfile u_regfile(
         .s0_found(s0_found),    .s0_index(s0_index),        .s0_ppn(s0_ppn),
         .s0_ps(s0_ps),          .s0_plv(s0_plv),            .s0_mat(s0_mat),
         .s0_d(s0_d),            .s0_v(s0_v),
-        // Load Stor INVTLB
+        // Load Store INVTLB
         .s1_vppn(s1_vppn),      .s1_va_bit12(s1_va_bit12),  .s1_asid(s1_asid),
         .s1_found(s1_found),    .s1_index(s1_index),        .s1_ppn(s1_ppn),
         .s1_ps(s1_ps),          .s1_plv(s1_plv),            .s1_mat(s1_mat),
         .s1_d(s1_d),            .s1_v(s1_v),
+        .invtlb_valid(invtlb_valid),    .invtlb_op(invtlb_op),
         // Write Port
         .we(we),                .w_index(w_index),          .w_e(w_e),
         .w_vppn(w_vppn),        .w_ps(w_ps),                .w_asid(w_asid),
@@ -365,7 +367,7 @@ wire    [31:0]  addr1_forward, addr2_forward;
 wire            pause, addr1_occur, addr2_occur;
 
 data_harzard_detector u_dhd(
-                          .reset(reset || wb_ex || ertn_flush),
+                          .reset(reset || WB_ex || ertn_flush),
                           .rf_raddr1(rf_raddr1),
                           .rf_raddr2(rf_raddr2),
                           .EX_bypass_bus(EX_bypass_bus),
@@ -380,9 +382,7 @@ data_harzard_detector u_dhd(
 
 // store when exception occur in EX/MEM/WB
 wire excep_valid;
-wire ex_ex = | EXreg_bus[238:223];
-wire mem_ex = | MEMreg_bus[167:152];
-wire st_disable = ex_ex | mem_ex | wb_ex;
+wire st_disable = EX_ex | MEM_ex | WB_ex;
 
 //-----------------------------------Refetch and TLBSRCH pause-----------------------------------
 // exp18
@@ -398,7 +398,7 @@ assign  to_EX_tlbsrch_pause = from_MEM_tlbsrch_pause | from_WB_tlbsrch_pause;
 
 /***************************************************
     Hint:
-    clean pipeline when wb_ex or ertn_reflush:
+    clean pipeline when WB_ex or ertn_reflush:
     reset stages besides IF stage.
 ****************************************************/
 
@@ -425,7 +425,7 @@ IF  u_IF(
         .BR_BUS(BR_BUS),
 
         .except_valid(excep_valid),
-        .wb_ex(wb_ex),
+        .WB_ex(WB_ex),
         .ex_entry(ex_entry),
         .ertn_flush(ertn_flush),
         .era_pc(era_pc),
@@ -445,7 +445,7 @@ IF  u_IF(
 // ID
 ID  u_ID(
         .clk(aclk),
-        .reset(reset||wb_ex||ertn_flush||refetch_flush),
+        .reset(reset||WB_ex||ertn_flush||refetch_flush),
         .timecnt(timecnt),
         .valid(IFreg_valid),
         .IFreg_bus(IFreg),
@@ -476,7 +476,7 @@ ID  u_ID(
 // EX
 EX  u_EX(
         .clk(aclk),
-        .reset(reset||wb_ex||ertn_flush||refetch_flush),
+        .reset(reset||WB_ex||ertn_flush||refetch_flush),
         .valid(IDreg_valid),
         .IDreg_bus(IDreg),
         .ID_ready_go(ID_ready_go),
@@ -502,9 +502,12 @@ EX  u_EX(
         .rdcntv_op(rdcntv_op),
         .counter_value(counter_value),
 
-        .ertn_cancel(MEM_ertn||WB_ertn)
+        .except(EX_ex),
+        .ertn_cancel(MEM_ertn||WB_ertn),
         .refetch(from_EX_refetch),
         .tlbsrch_pause(to_EX_tlbsrch_pause),
+        .csr_asid(csr_asid),
+        .csr_tlbehi(csr_tlbehi),
 
         // TLB ports
         .s1_vppn(s1_vppn),  .s1_va_bit12(s1_va_bit12),
@@ -518,7 +521,7 @@ EX  u_EX(
 MEM u_MEM(
         .clk(aclk),
         .reset_real(reset),
-        .reset(reset||wb_ex||ertn_flush||refetch_flush),
+        .reset(reset||WB_ex||ertn_flush||refetch_flush),
         .valid(EXreg_valid),
         /***************************************************
             Hint:
@@ -535,8 +538,6 @@ MEM u_MEM(
         
         .refetch(from_MEM_refetch),
         .tlbsrch_pause(from_MEM_tlbsrch_pause),
-        .csr_asid(csr_asid),
-        .csr_tlbehi(csr_tlbehi),
 
         .EX_ready_go(EX_ready_go),
         .WB_allow_in(WB_allow_in),
@@ -545,6 +546,7 @@ MEM u_MEM(
         .MEM_bypass_bus(MEM_bypass_bus),
         .MEMreg_valid(toMEMreg_valid_bus),
         .MEMreg_bus(MEMreg_bus),
+        .except(MEM_ex),
         .ertn_flush(MEM_ertn)
     );
 
@@ -574,16 +576,16 @@ WB  u_WB(
         .csr_rvalue(csr_rvalue),
         .to_csr_in_bus(CSR_in_bus),
         .ertn_flush(WB_ertn),
+        .except(WB_ex),
         .excep_valid(excep_valid)
     );
-assign wb_ex = CSR_in_bus[79];
 assign ertn_flush = CSR_in_bus[80];
 
 // Pipeline update
 // IFreg
 always @(posedge aclk)
 begin
-    if (reset||wb_ex||ertn_flush||refetch_flush)
+    if (reset||WB_ex||ertn_flush||refetch_flush)
     begin
         IFreg_valid     <= 0;
         IFreg           <= 0;
@@ -608,7 +610,7 @@ end
 // IDreg
 always @(posedge aclk)
 begin
-    if (reset||wb_ex||ertn_flush||refetch_flush)
+    if (reset||WB_ex||ertn_flush||refetch_flush)
     begin
         IDreg_valid     <= 0;
         IDreg           <= 0;
@@ -633,7 +635,7 @@ end
 // EXreg
 always @(posedge aclk)
 begin
-    if (reset||wb_ex||ertn_flush||refetch_flush)
+    if (reset||WB_ex||ertn_flush||refetch_flush)
     begin
         EXreg_valid     <= 0;
         EXreg           <= 0;
@@ -658,7 +660,7 @@ end
 // MEMreg
 always @(posedge aclk)
 begin
-    if (reset||wb_ex||ertn_flush||refetch_flush)
+    if (reset||WB_ex||ertn_flush||refetch_flush)
     begin
         MEMreg_valid    <= 0;
         MEMreg          <= 0;

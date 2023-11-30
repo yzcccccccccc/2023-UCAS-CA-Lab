@@ -69,6 +69,7 @@ wire          pause_int_detect;
 wire          refetch_detect;             // [2023.11.29:yzcc] trigger the refetch signal when certain CSRs are gonna be modified.
 wire          tlbsrch_pause_detect;       // [2023.11.29:yzcc] trigger the pause signal when certain CSRs are gonna be modified.
 wire [4:0]    invtlb_op; 
+wire          invtlb_op_invalid;          // invtlb_op >= 0x7
 
 // stable counter
 wire [ 1:0] rdcntv_op;                    // = {inst_rdcntvh_w,inst_rdcntvl_w}
@@ -463,11 +464,11 @@ to inform EX stage about the 'need to refetch'.
 assign refetch_detect       = csr_we & (csr_num == `CSR_CRMD & (csr_wmask[`CSR_CRMD_DA] | csr_wmask[`CSR_CRMD_PG])
                                    | csr_num == `CSR_DMW0
                                    | csr_num == `CSR_DMW1
-                                   | csr_num == `CSR_ASID);
+                                   | csr_num == `CSR_ASID)
                             | inst_tlbwr
                             | inst_tlbfill
                             | inst_tlbrd
-                            | inst_invtlb;
+                            | inst_invtlb & ~invtlb_op_invalid;
 
 /****************************************************************
 [2023.11.29] yzcc:
@@ -478,7 +479,8 @@ of these modification, pause the tlbsrch inst in EX stage.
 assign tlbsrch_pause_detect = csr_we & (csr_num == `CSR_ASID || csr_num == `CSR_TLBEHI)
                             | inst_tlbrd;
 
-assign invtlb_op     = rd;
+assign invtlb_op            = rd;
+assign invtlb_op_invalid    = |invtlb_op[4:3] | (&invtlb_op[2:0]);
 
 // time counter
 assign rdcntv_op = {inst_rdcntvh_w, inst_rdcntvl_w};
@@ -505,7 +507,7 @@ assign has_inst = {  inst_tlbsrch, inst_tlbwr, inst_tlbrd, inst_tlbfill, inst_in
                      inst_lu12i_w, inst_bne, inst_beq, inst_bl, inst_b, inst_jirl,
                      inst_st_w, inst_ld_w, inst_addi_w, inst_srai_w, inst_srli_w, inst_slli_w,
                      inst_xor, inst_or, inst_and, inst_nor, inst_sltu, inst_slt, inst_sub_w, inst_add_w};
-assign has_ine = ~(|has_inst) & valid;
+assign has_ine = (~(|has_inst) | inst_invtlb & invtlb_op_invalid) & valid;
 
 // exp13 brk
 assign has_brk = inst_break & valid;
@@ -516,7 +518,7 @@ wire   [`ID2MEM_LEN - 1:0]  IDreg_2MEM;
 wire   [`ID2WB_LEN - 1:0]   IDreg_2WB;
 wire   [`ID_TLB_LEN - 1:0]  IDreg_TLB;
 
-assign IDreg_valid   = ~has_ine & valid & ~refetch_tag;
+assign IDreg_valid   = valid & ~refetch_tag;
 assign IDreg_2EX     = {rdcntv_op, ebus_end, alu_op, alu_src1, alu_src2, mul, div};
 assign IDreg_2MEM    = {rkd_value, mem_en, st_ctrl, ld_ctrl};
 assign IDreg_2WB     = {pause_int_detect, ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc};
@@ -529,7 +531,7 @@ assign ID_ready_go      = ~pause;
 assign ID_allow_in      = ~IDreg_valid | EX_allow_in & ID_ready_go;
 
 // refetch (to IF)
-assign refetch          = refetch_detect & valid;
+assign refetch          = refetch_detect & valid & ~has_ine;
 
 // BR_BUS
 // br_taken_last is used to ensure that br_taken only duration 1 clock

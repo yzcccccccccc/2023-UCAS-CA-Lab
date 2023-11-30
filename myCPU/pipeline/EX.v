@@ -35,6 +35,7 @@ module EX(
     input   wire [31:0]     counter_value,
     output  wire [1:0]      rdcntv_op,
 
+    output  wire            except,
     input   wire            ertn_cancel,
     output  wire            refetch,
     input   wire            tlbsrch_pause,
@@ -97,12 +98,13 @@ wire    [31:0]  pc;
 
 wire            res_from_rdcntv;
 wire            tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit;
+wire            invtlb_valid_tmp;
 wire            refetch_detect, tlbsrch_pause_detect, refetch_tag;
 
 assign  {rdcntv_op, ebus_init, alu_op, alu_src1, alu_src2, mul, div}      = ID2EX_bus;
 assign  {rkd_value, mem_en, st_ctrl, ld_ctrl}       = ID2MEM_bus;
 assign  {pause_int_detect, ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc}         = ID2WB_bus;
-assign  {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, invtlb_valid, invtlb_op, refetch_detect, tlbsrch_pause_detect, refetch_tag}    = ID_TLB_bus;
+assign  {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, invtlb_valid_tmp, invtlb_op, refetch_detect, tlbsrch_pause_detect, refetch_tag}    = ID_TLB_bus;
 
 // Define Signals
 wire [31:0]         alu_result;
@@ -179,7 +181,7 @@ always @(posedge clk) begin
             cancel_or_diable    <= 1;
     end
 end
-assign data_sram_req    = mem_en & valid & ~has_ale & MEM_allow_in & ~(cancel_or_diable | ertn_cancel | st_disable) & ~(|ebus_init);
+assign data_sram_req    = mem_en & valid & ~has_ale & MEM_allow_in & ~(cancel_or_diable | ertn_cancel | st_disable) & ~(|ebus_init) & ~refetch_tag;
 assign data_sram_addr   = alu_result;
 assign data_sram_size   = {2{st_ctrl[2] | ld_ctrl[4]}} & 2'd2
                         | {2{st_ctrl[1] | ld_ctrl[1] | ld_ctrl[0]}} & 2'd1
@@ -197,6 +199,7 @@ wire [3:0]  tlbsrch_index;
 assign      invtlb_asid     = alu_src1[9:0];                        // rj[9:0]
 assign      invtlb_vppn     = alu_src2[31:13];                      // rk[31:13]
 assign      invtlb_vabit12  = alu_src2[12];
+assign      invtlb_valid    = invtlb_valid_tmp & valid;
 
 assign      tlbsrch_vppn    = csr_tlbehi[`CSR_TLBEHI_VPPN];
 assign      tlbsrch_vabit12 = csr_tlbehi[12];
@@ -254,6 +257,9 @@ assign  EX_result           =   div ? div_result :
                                 alu_result;
 
 assign  EX_bypass_bus       = {pause_int_detect & EXreg_valid, res_from_csr, EX_rf_waddr, EX_rf_we, mul, EX_res_from_mem, EX_result};
+
+// Exception
+assign  except              = |ebus_end & valid;
 
 // control signals
 assign EX_ready_go      = (div & valid) ? div_done

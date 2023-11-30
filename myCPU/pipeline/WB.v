@@ -34,8 +34,9 @@ module WB(
         output  wire        refetch,
         output  wire        tlbsrch_pause,
         output  wire        refetch_flush,
-        output  wire [31:0] refetch_entry,
+        output  wire [31:0] refetch_pc,
 
+        output  wire    except,
         output  wire    ertn_flush,
         output  wire    excep_valid
     );
@@ -97,7 +98,10 @@ assign WB_allow_in          = 1;
 assign refetch          = refetch_detect & valid;
 assign tlbsrch_pause    = tlbsrch_pause_detect & valid;
 assign refetch_flush    = refetch_tag;
-assign refetch_entry    = pc;
+assign refetch_pc       = pc;
+
+// Exception
+assign except           = wb_ex;
 
 // CSR
 assign wb_ex = |ebus_end & valid;

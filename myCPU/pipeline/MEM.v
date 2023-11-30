@@ -28,6 +28,7 @@ module MEM(
        output   wire [`MEMReg_BUS_LEN - 1:0]    MEMreg_bus,
 
        output   wire    ertn_flush,
+       output   wire    except,
 
        output   wire    refetch,
        output   wire    tlbsrch_pause
@@ -102,6 +103,9 @@ assign MEM_bypass_bus       = {pause_int_detect & MEMreg_valid, res_from_csr, rf
 // refetch and tlbsrch_pause
 assign refetch          = refetch_detect & valid;
 assign tlbsrch_pause    = tlbsrch_pause_detect & valid;
+
+// Exception
+assign except           = |ebus_end & valid;
 
 // MEMreg_bus
 reg     has_reset;

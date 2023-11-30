@@ -29,7 +29,7 @@ module IF(
 
     // exception
     input   wire        except_valid,
-    input   wire        wb_ex,
+    input   wire        WB_ex,
     input   wire [31:0] ex_entry,
     input   wire        ertn_flush,
     input   wire [31:0] era_pc,
@@ -156,7 +156,7 @@ module IF(
         to_IF_valid should be invalidated if addr request happen
     to be accepted when we need to cancel preIF 
     ************************************************************/
-    assign preIF_cancel = (ertn_flush & except_valid | wb_ex & except_valid | br_taken | refetch_flush);
+    assign preIF_cancel = (ertn_flush & except_valid | WB_ex & except_valid | br_taken | refetch_flush);
     assign to_IF_valid  = preIF_ready_go & ~preIF_cancel;
 
     // Retaining cancel situation
@@ -185,7 +185,7 @@ module IF(
         else begin
             if (ertn_flush & except_valid)
                 {ertn_taken_r, ertn_pc_r}       <= {1'b1, era_pc};
-            if (wb_ex & except_valid)
+            if (WB_ex & except_valid)
                 {ex_taken_r, ex_pc_r}           <= {1'b1, ex_entry};
             if (br_taken)
                 {br_taken_r, br_pc_r}           <= {1'b1, br_target};
@@ -196,8 +196,8 @@ module IF(
     assign  ertn_tak            = ertn_flush & except_valid | ertn_taken_r;
     assign  ertn_pc             = {32{ertn_flush & except_valid}} & era_pc
                                 | {32{ertn_taken_r}} & ertn_pc_r;
-    assign  ex_tak              = wb_ex & except_valid | ex_taken_r;
-    assign  ex_pc               = {32{wb_ex & except_valid}} & ex_entry
+    assign  ex_tak              = WB_ex & except_valid | ex_taken_r;
+    assign  ex_pc               = {32{WB_ex & except_valid}} & ex_entry
                                 | {32{ex_taken_r}} & ex_pc_r;
     assign  br_tak              = br_taken | br_taken_r;
     assign  br_pc               = {32{br_taken}} & br_target
@@ -207,7 +207,7 @@ module IF(
                                 | {32{refetch_flush_r}} & refetch_pc_r;
 
     // pc_next
-    assign pc_seq           = pc + 32'h4;
+    assign  pc_seq          = pc + 32'h4;
     assign  pc_next         = refetch_flush_tak ? refetch_flush_pc
                             : ex_tak ? ex_pc
                             : ertn_tak ? ertn_pc
@@ -254,13 +254,13 @@ module IF(
         2. ADEF
     
     2023.11.30 yzcc
-        3. haven't shaked hands and tagged with 'refetch'
+        3. haven't shaked hands and tagged with 'refetch' tag
     *****************************************************************/
     assign IF_ready_go      = recv_inst_from_sram & inst_sram_data_ok
                             | recv_inst_from_buf & IF_buf_valid
                             | IF_has_adef
                             | (unfinish_cnt == 0 && IF_refetch_tag);
-    assign IF_allow_in      = ~IFreg_valid | ID_allow_in & IF_ready_go;
+    assign IF_allow_in      = ~IFreg_valid & ~IF_refetch_tag | ID_allow_in & IF_ready_go;
     assign IFreg_valid      = IF_valid & ~IF_cancel_tak & ~IF_refetch_tag;
 
     // IF_valid
@@ -290,13 +290,12 @@ module IF(
     2023.11.10 yzcc
         IF_cancel may only last for 1 clk, so we need to use a reg to
     record it. (IF_cancel_r)
-    *****************************************************************/
-    /*****************************************************************
+
     2023.11.12 czxx
         When to reset?
         a new inst has entered this stage
     *****************************************************************/
-    assign IF_cancel    = (ertn_flush & except_valid | wb_ex & except_valid | br_taken | refetch_flush);
+    assign IF_cancel    = (ertn_flush & except_valid | WB_ex & except_valid | br_taken | refetch_flush);
     always @(posedge clk) begin
         if (reset)
             IF_cancel_r  <= 0;
