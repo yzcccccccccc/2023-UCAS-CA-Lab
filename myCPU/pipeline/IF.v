@@ -126,7 +126,7 @@ module IF(
             preIF_refetch_tag_r <= 0;
         else begin
             if (preIF_ready_go && IF_allow_in)
-                preIF_refetch_tag_r <= refetch;
+                preIF_refetch_tag_r <= 0;
             else
                 if (refetch)
                     preIF_refetch_tag_r <= 1;

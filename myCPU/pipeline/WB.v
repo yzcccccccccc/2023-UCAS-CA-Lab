@@ -2,7 +2,6 @@
 
 module WB(
         input   wire        clk,
-        input   wire        reset,
 
         // valid & MEMreg_bus
         input   wire                            valid,

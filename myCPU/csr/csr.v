@@ -16,6 +16,9 @@ module csr(
     output  wire [31:0]             ex_entry,
     output  wire [31:0]             era_pc,
     output  wire                    has_int,
+    output  wire [31:0]             csr_crmd,
+    output  wire [31:0]             csr_asid,
+    output  wire [31:0]             csr_tlbehi,
 
     // TLB ports
     input   wire            r_e,
@@ -577,5 +580,9 @@ assign csr_rvalue = {32{csr_num==`CSR_CRMD}} & csr_crmd_rvalue
        | {32{csr_num == `CSR_ASID}} & csr_asid_rvalue
        | {32{csr_num == `CSR_TLBRENTRY}} & csr_tlbrentry_rvalue;
 
+// TLB CSR values
+assign csr_asid     = csr_asid_rvalue;
+assign csr_crmd     = csr_crmd_rvalue;
+assign csr_tlbehi   = csr_tlbehi_rvalue;
 
 endmodule

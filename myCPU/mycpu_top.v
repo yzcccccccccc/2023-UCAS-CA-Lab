@@ -238,6 +238,7 @@ regfile u_regfile(
     wire [31:0] ex_entry;
     wire [31:0] era_pc;
     wire has_int;
+    wire [31:0] csr_crmd, csr_asid, csr_tlbehi;
     
     csr u_csr(
             .clk(aclk),
@@ -255,6 +256,9 @@ regfile u_regfile(
             .ex_entry(ex_entry),
             .era_pc(era_pc),
             .has_int(has_int),
+            .csr_asid(csr_asid),
+            .csr_crmd(csr_crmd),
+            .csr_tlbehi(csr_tlbehi),
 
             // TLB ports
             .r_index(r_index),          .r_e(r_e),
@@ -441,7 +445,7 @@ IF  u_IF(
 // ID
 ID  u_ID(
         .clk(aclk),
-        .reset(reset||wb_ex||ertn_flush),
+        .reset(reset||wb_ex||ertn_flush||refetch_flush),
         .timecnt(timecnt),
         .valid(IFreg_valid),
         .IFreg_bus(IFreg),
@@ -472,7 +476,7 @@ ID  u_ID(
 // EX
 EX  u_EX(
         .clk(aclk),
-        .reset(reset||wb_ex||ertn_flush),
+        .reset(reset||wb_ex||ertn_flush||refetch_flush),
         .valid(IDreg_valid),
         .IDreg_bus(IDreg),
         .ID_ready_go(ID_ready_go),
@@ -514,7 +518,7 @@ EX  u_EX(
 MEM u_MEM(
         .clk(aclk),
         .reset_real(reset),
-        .reset(reset||wb_ex||ertn_flush),
+        .reset(reset||wb_ex||ertn_flush||refetch_flush),
         .valid(EXreg_valid),
         /***************************************************
             Hint:
@@ -531,6 +535,8 @@ MEM u_MEM(
         
         .refetch(from_MEM_refetch),
         .tlbsrch_pause(from_MEM_tlbsrch_pause),
+        .csr_asid(csr_asid),
+        .csr_tlbehi(csr_tlbehi),
 
         .EX_ready_go(EX_ready_go),
         .WB_allow_in(WB_allow_in),
@@ -545,7 +551,6 @@ MEM u_MEM(
 // WB
 WB  u_WB(
         .clk(aclk),
-        .reset(reset||wb_ex||ertn_flush),
         .valid(MEMreg_valid),
         .MEMreg_bus(MEMreg),
         .rf_wdata(rf_wdata),
