@@ -43,6 +43,9 @@ module EX(
 
     // CSR value
     input   wire [31:0]     csr_asid,
+    input   wire [31:0]     csr_crmd,
+    input   wire [31:0]     csr_dmw0,
+    input   wire [31:0]     csr_dmw1,
     input   wire [31:0]     csr_tlbehi,
 
     // TLB ports (s1_ && invtlb_)
@@ -120,6 +123,15 @@ wire    [4:0]       EX_rf_waddr;
 wire                EX_rf_we, EX_res_from_mem;
 wire    [31:0]      EX_result;
 
+wire has_ale;       // EXP13
+
+wire            has_pil, has_pis, has_pif, has_pme, has_ppi, has_tlbr;  // EXP 19
+wire [5:0]      mem_except;
+wire            has_mem_except;
+
+wire [31:0]     pa;             // physical address
+wire [1:0]      mat;            // memory acess type
+
 // ALU
 alu u_alu(
         .alu_op     (alu_op),
@@ -162,8 +174,39 @@ assign st_data  = {32{st_ctrl[0]}} & {4{rkd_value[7:0]}}
        | {32{st_ctrl[1]}} & {2{rkd_value[15:0]}}
        | {32{st_ctrl[2]}} & {rkd_value[31:0]};
 
-// exp13 ale
-wire has_ale;
+// Translation
+wire    en;
+assign  en = mem_en & valid & ~has_ale & MEM_allow_in & ~(cancel_or_diable | ertn_cancel | st_disable) & ~(|ebus_init) & ~refetch_tag;
+
+wire    type_load, type_store;
+assign  type_load   = |ld_ctrl;
+assign  type_store  = |st_ctrl;
+
+MMU_convert EX_va_convertor(
+    .en(en),
+    .ope_type({0, type_load, type_store}),
+    .va(alu_result),
+    .csr_crmd(csr_crmd),
+    .csr_dmw0(csr_dmw0),
+    .csr_dmw1(csr_dmw1),
+    .s_found(s1_found),
+    .s_index(s1_index),
+    .s_ppn(s1_ppn),
+    .s_ps(s1_ps),
+    .s_plv(s1_plv),
+    .s_mat(s1_mat),
+    .s_d(s1_d),
+    .s_v(s1_v),
+    .has_mem_except(has_mem_except),
+    .except(mem_except),
+    .pa(pa),
+    .mat(mat)
+);
+
+// EXP19 pil, pis, pif, pme, ppi, tlbr
+assign {has_pil, has_pis, has_pif, has_pme, has_ppi, has_tlbr}  = mem_except;
+
+// EXP13 ale
 assign has_ale = st_ctrl[1] && alu_result[0]                    ||
                  st_ctrl[2] && (alu_result[0] || alu_result[1]) ||
                  ld_ctrl[0] && alu_result[0]                    ||
@@ -182,8 +225,8 @@ always @(posedge clk) begin
             cancel_or_diable    <= 1;
     end
 end
-assign data_sram_req    = mem_en & valid & ~has_ale & MEM_allow_in & ~(cancel_or_diable | ertn_cancel | st_disable) & ~(|ebus_init) & ~refetch_tag;
-assign data_sram_addr   = alu_result;
+assign data_sram_req    = mem_en & valid & ~has_ale & ~has_mem_except & MEM_allow_in & ~(cancel_or_diable | ertn_cancel | st_disable) & ~(|ebus_init) & ~refetch_tag;
+assign data_sram_addr   = pa;
 assign data_sram_size   = {2{st_ctrl[2] | ld_ctrl[4]}} & 2'd2
                         | {2{st_ctrl[1] | ld_ctrl[1] | ld_ctrl[0]}} & 2'd1
                         | {2{st_ctrl[1] | ld_ctrl[2] | ld_ctrl[3]}} & 2'd0;
@@ -224,7 +267,13 @@ assign res_from_rdcntv = |rdcntv_op;
 
 // exception
 assign ebus_end = (|ebus_init) ? ebus_init
-              : {{15-`EBUS_ALE{1'b0}}, has_ale, {`EBUS_ALE{1'b0}}} & {16{valid}};
+              : {{15-`EBUS_ALE{1'b0}}, has_ale, {`EBUS_ALE{1'b0}}} & {16{valid}}
+              | {{15-`EBUS_PIL{1'b0}}, IF_has_pil, {`EBUS_PIL{1'b0}}}
+              | {{15-`EBUS_PIS{1'b0}}, IF_has_pis, {`EBUS_PIS{1'b0}}}
+              | {{15-`EBUS_PIF{1'b0}}, IF_has_pif, {`EBUS_PIF{1'b0}}}
+              | {{15-`EBUS_PME{1'b0}}, IF_has_pme, {`EBUS_PME{1'b0}}}
+              | {{15-`EBUS_PPI{1'b0}}, IF_has_ppi, {`EBUS_PPI{1'b0}}}
+              | {{15-`EBUS_TLBR{1'b0}}, IF_has_tlbr, {`EBUS_TLBR{1'b0}}};
 
 // EXreg_bus
 reg     has_flush;

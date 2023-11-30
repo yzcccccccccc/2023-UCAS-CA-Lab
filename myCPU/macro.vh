@@ -86,6 +86,7 @@
 `define CSR_ASID_ASID       9:0
 `define CSR_ASID_ASIDBITS   23:16
 `define CSR_PGDH_BASE       31:12               // GRLEN - 1:12
+`define CSR_PGDL_BASE       31:12
 `define CSR_PGD_BASE        31:12               // GRLEN - 1:12
 `define CSR_TLBRENTRY_PA    31:6
 `define CSR_DMW_PLV0        0
@@ -135,3 +136,6 @@
 `define EBUS_TLBR         4'd15
 
 `define TLBNUM              16
+
+// MMU convert (va->pa)
+

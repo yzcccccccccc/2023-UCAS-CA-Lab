@@ -243,7 +243,7 @@ regfile u_regfile(
     wire [31:0] ex_entry;
     wire [31:0] era_pc;
     wire has_int;
-    wire [31:0] csr_crmd, csr_asid, csr_tlbehi;
+    wire [31:0] csr_crmd, csr_asid, csr_tlbehi, csr_dmw0, csr_dmw1;
     
     csr u_csr(
             .clk(aclk),
@@ -264,6 +264,8 @@ regfile u_regfile(
             .csr_asid(csr_asid),
             .csr_crmd(csr_crmd),
             .csr_tlbehi(csr_tlbehi),
+            .csr_dmw0(csr_dmw0),
+            .csr_dmw1(csr_dmw1),
 
             // TLB ports
             .r_index(r_index),          .r_e(r_e),
@@ -435,6 +437,12 @@ IF  u_IF(
         .ex_entry(ex_entry),
         .ertn_flush(ertn_flush),
         .era_pc(era_pc),
+
+        // CSR valud
+        .csr_asid(csr_asid),
+        .csr_crmd(csr_crmd),
+        .csr_dmw0(csr_dmw0),
+        .csr_dmw1(csr_dmw1),
 
         // refetch
         .refetch(to_IF_refetch),

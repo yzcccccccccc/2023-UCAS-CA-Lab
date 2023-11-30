@@ -39,6 +39,12 @@ module IF(
     input   wire        refetch_flush,
     input   wire [31:0] refetch_pc,
 
+    // CSR value
+    input   wire [31:0] csr_asid,
+    input   wire [31:0] csr_crmd,
+    input   wire [31:0] csr_dmw0,
+    input   wire [31:0] csr_dmw1,
+
     // TLB ports (s0_)
     output  wire [18:0]     s0_vppn,
     output  wire            s0_va_bit12,
@@ -101,21 +107,52 @@ module IF(
         not set adef_ex until the wrong pc go to IF stage
     2023.11.10 yzcc
         IF_has_adef is for IF stage
+
+    2023.11.30 yzcc
+        Include other Exception. (exp19)
     *********************************************************/
-    reg     IF_has_adef;
-    wire    preIF_has_adef;
+    wire    preIF_has_mem_except;           // PIL, PIS, PIF, PME, PPI, TLBR
+    reg     IF_has_mem_except;
+    
+    wire [5:0]  mem_except;
+    reg     IF_has_adef, IF_has_pil, IF_has_pis, IF_has_pif, IF_has_pme, IF_has_ppi, IF_has_tlbr;
+    wire    preIF_has_adef, preIF_has_pil, preIF_has_pis, preIF_has_pme, preIF_has_ppi, preIF_has_tlbr;
+
     assign  preIF_has_adef  = pc_next[1:0] != 2'b0;
+    assign  {IF_has_pil, IF_has_pis, IF_has_pif, IF_has_pme, IF_has_ppi, IF_has_tlbr}   = mem_except;
 
     always@(posedge clk)
     begin
-        if(reset)
+        if(reset) begin
             IF_has_adef <= 1'b0;
+            IF_has_pil  <= 1'b0;
+            IF_has_pis  <= 1'b0;
+            IF_has_pif  <= 1'b0;
+            IF_has_pme  <= 1'b0;
+            IF_has_ppi  <= 1'b0;
+            IF_has_tlbr <= 1'b0;
+            IF_has_mem_except   <= 1'b0;
+        end
         else
-            if (preIF_ready_go & IF_allow_in)
+            if (preIF_ready_go & IF_allow_in) begin
                 IF_has_adef <= preIF_has_adef;
+                IF_has_pil  <= preIF_has_pil;
+                IF_has_pis  <= preIF_has_pis
+                IF_has_pif  <= preIF_has_pif;
+                IF_has_pme  <= preIF_has_pme;
+                IF_has_ppi  <= preIF_has_ppi;
+                IF_has_tlbr <= preIF_has_tlbr;
+                IF_has_mem_except   <= preIF_has_mem_except;
+            end
     end
 // ebus
-    assign ebus_end = ebus_init | {{15-`EBUS_ADEF{1'b0}}, IF_has_adef, {`EBUS_ADEF{1'b0}}};
+    assign ebus_end = ebus_init | {{15-`EBUS_ADEF{1'b0}}, IF_has_adef, {`EBUS_ADEF{1'b0}}}
+                                | {{15-`EBUS_PIL{1'b0}}, IF_has_pil, {`EBUS_PIL{1'b0}}}
+                                | {{15-`EBUS_PIS{1'b0}}, IF_has_pis, {`EBUS_PIS{1'b0}}}
+                                | {{15-`EBUS_PIF{1'b0}}, IF_has_pif, {`EBUS_PIF{1'b0}}}
+                                | {{15-`EBUS_PME{1'b0}}, IF_has_pme, {`EBUS_PME{1'b0}}}
+                                | {{15-`EBUS_PPI{1'b0}}, IF_has_ppi, {`EBUS_PPI{1'b0}}}
+                                | {{15-`EBUS_TLBR{1'b0}}, IF_has_tlbr, {`EBUS_TLBR{1'b0}}};
 
 //------------------------------------------------------preIF------------------------------------------------------
     // preIF_refetch
@@ -153,7 +190,7 @@ module IF(
     2023.11.30 yzcc
         also allow to go when preIF is tagged with 'refetch'
     ************************************************************/
-    assign preIF_ready_go = (inst_sram_req & inst_sram_addr_ok) | preIF_has_adef | preIF_refetch_tag;
+    assign preIF_ready_go = (inst_sram_req & inst_sram_addr_ok) | preIF_has_adef | preIF_has_mem_except | preIF_refetch_tag;
 
     // to_IF_valid
     /***********************************************************
@@ -232,13 +269,48 @@ module IF(
 
     2023.11.30 yzcc
         3. pc tagged 'refetch' will not pull up a request
+
+    2023.11.30 yzcc
+        4. mem eceptions (PIL etc.) will not pull up a request
     **************************************************************/
-    assign inst_sram_req            = ~reset & ~br_stall & IF_allow_in & ~preIF_has_adef & ~preIF_refetch_tag;
-    assign inst_sram_addr           = pc_next;
+    wire    [31:0]  pa;
+    wire    [1:0]   mat;
+
+    assign inst_sram_req            = ~reset & ~br_stall & IF_allow_in & ~preIF_has_adef & ~preIF_refetch_tag & ~preIF_has_mem_except;
+    assign inst_sram_addr           = pa;
     assign inst_sram_wr             = 0;
     assign inst_sram_wstrb          = 0;
     assign inst_sram_wdata          = 0;
     assign inst_sram_size           = 2'b10;            // 2 means 2^2 = 4 bytes.
+
+    // Translation
+    wire    en;
+    assign  en                      = ~reset & ~br_stall & IF_allow_in & ~preIF_has_adef & ~preIF_refetch_tag;
+
+    assign  s0_vppn                 = pc_next[31:13];
+    assign  s0_va_bit12             = pc_next[12];
+    assign  s0_asid                 = csr_asid[`CSR_ASID_ASID];
+
+    MMU_convert preIF_va_convertor(
+        .en(en),
+        .ope_type(3'b100),
+        .va(pc_next),
+        .csr_crmd(csr_crmd),
+        .csr_dmw0(csr_dmw0),
+        .csr_dmw1(csr_dmw1),
+        .s_found(s0_found),
+        .s_index(s0_index),
+        .s_ppn(s0_ppn),
+        .s_ps(s0_ps),
+        .s_plv(s0_plv),
+        .s_mat(s0_mat),
+        .s_d(s0_d),
+        .s_v(s0_v),
+        .has_mem_except(preIF_has_mem_except),
+        .except(mem_except),
+        .pa(pa),
+        .mat(mat),
+    );
 
 //------------------------------------------------------IF------------------------------------------------------
     // IF_refetch_tag
@@ -282,6 +354,7 @@ module IF(
     assign IF_ready_go      = recv_inst_from_sram & inst_sram_data_ok
                             | recv_inst_from_buf & IF_buf_valid
                             | IF_has_adef
+                            | IF_has_mem_except
                             | (unfinish_cnt == 0 && IF_refetch_tag);
     assign IF_allow_in      = ~IFreg_valid & ~IF_refetch_tag | ID_allow_in & IF_ready_go;
     assign IFreg_valid      = IF_valid & ~IF_cancel_tak & ~IF_refetch_tag;
