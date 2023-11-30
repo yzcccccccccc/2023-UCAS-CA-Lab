@@ -119,6 +119,11 @@ module IF(
 
 //------------------------------------------------------preIF------------------------------------------------------
     // preIF_refetch
+    /***********************************************************
+    2023.11.30 yzcc
+        preIF_refetch_tag:
+            mark whether the pc in preIF stage needs refetch
+    ***********************************************************/
     wire    preIF_refetch_tag;
     reg     preIF_refetch_tag_r;
     always @(posedge clk) begin
@@ -165,6 +170,10 @@ module IF(
         These regs are used for storing PCs when facing cancel
     situation. The reason of using regs is that these signals
     can only exist for 1 clock.
+
+    2023.11.30 yzcc
+        Also regard refetch_flush as a cancel situalion.
+        (refetch_flush: pc in WB stage tagged with 'refetch')
     ***********************************************************/
     reg             ertn_taken_r, ex_taken_r, br_taken_r, refetch_flush_r;
     reg [31:0]      ertn_pc_r, ex_pc_r, br_pc_r, refetch_pc_r;
@@ -233,6 +242,14 @@ module IF(
 
 //------------------------------------------------------IF------------------------------------------------------
     // IF_refetch_tag
+    /***********************************************************
+    2023.11.30 yzcc
+        IF_refetch_tag:
+            Mark whether the pc in IF stage requires refetch.
+
+        1) update from preIF
+        2) update from top signal 'refetch'
+    ***********************************************************/
     wire    IF_refetch_tag;
     reg     IF_refetch_tag_r;
     always @(posedge clk) begin
@@ -254,7 +271,13 @@ module IF(
         2. ADEF
     
     2023.11.30 yzcc
+        About IF_ready_go:
         3. haven't shaked hands and tagged with 'refetch' tag
+
+        About IF_allow_in:
+        allow in if '~IFreg_valid & ~IF_refetch_tag'
+        (because refetch will invalidate the pc in IF, but
+        it's possible that the pc has shaked hands for addr.)
     *****************************************************************/
     assign IF_ready_go      = recv_inst_from_sram & inst_sram_data_ok
                             | recv_inst_from_buf & IF_buf_valid
