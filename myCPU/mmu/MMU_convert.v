@@ -17,7 +17,7 @@ module MMU_convert(
 
     // TLB port
     input   wire                            s_found,
-    input   wire [$clog2(TLBNUM)-1:0]       s_index,
+    input   wire [$clog2(`TLBNUM)-1:0]      s_index,
     input   wire [19:0]                     s_ppn,
     input   wire [5:0]                      s_ps,
     input   wire [1:0]                      s_plv,
@@ -68,7 +68,7 @@ assign  has_TLBR    = en & ~s_found;
 assign  has_PIF     = en & s_found & ~s_v & type_fetch;
 assign  has_PIL     = en & s_found & ~s_v & type_load;
 assign  has_PIS     = en & s_found & ~s_v & type_store;
-assign  has_PPE     = en & s_found & s_v & plv_cmp;
+assign  has_PPI     = en & s_found & s_v & plv_cmp;
 assign  has_PME     = en & s_found & s_v & ~plv_cmp & type_store & ~s_d;
 
 //------------------------ Direct Map Window ------------------------
@@ -77,8 +77,8 @@ wire    [31:0]  dmw0_addr, dmw1_addr;
 
 assign  in_dmw0     = (va[31:29] == dmw0_vseg) & (dmw0_plv0 & (crmd_plv == 2'd0) | dmw0_plv3 & (crmd_plv == 2'd3));
 assign  in_dmw1     = (va[31:29] == dmw1_vseg) & (dmw1_plv0 & (crmd_plv == 2'd0) | dmw1_plv3 & (crmd_plv == 2'd3));
-assign  dmw0_addr   = {dmw0_pseg, pa[28:0]};
-assign  dmw1_addr   = {dmw1_pseg, pa[28:0]};
+assign  dmw0_addr   = {dmw0_pseg, va[28:0]};
+assign  dmw1_addr   = {dmw1_pseg, va[28:0]};
 assign  dmw_hit     = in_dmw0 | in_dmw1;
 
 
@@ -86,7 +86,7 @@ assign  dmw_hit     = in_dmw0 | in_dmw1;
 wire            page_size;                      // 1 for 4MB, 0 for 4KB (22bit vs 12bit)
 wire    [31:0]  TLBMAP_pa, DIRMAP_pa, DIR_pa;   // TLB map pa, Directly map pa, Direct pa
 
-assign  page_size   = (s_ps == 6'd22);
+assign  page_size   = (s_ps == 6'd21);
 assign  TLBMAP_pa   = page_size ? {s_ppn[19:10], va[21:0]} : {s_ppn, va[11:0]};
 assign  DIRMAP_pa   = {32{in_dmw0}} & dmw0_addr
                     | {32{in_dmw1}} & dmw1_addr;
@@ -96,6 +96,7 @@ wire    [1:0]   TLBMAP_mat, DIRMAP_mat, DIR_mat;
 assign  TLBMAP_mat  = s_mat;
 assign  DIRMAP_mat  = {2{in_dmw0}} & dmw0_mat
                     | {2{in_dmw1}} & dmw1_mat;
+assign  DIR_mat     = 2'b00;
 
 //------------------------ Output ------------------------
 wire            use_TLBMAP, use_DIRMAP, use_DIR;
@@ -103,7 +104,7 @@ assign  use_TLBMAP  = ~crmd_da & crmd_pg & ~dmw_hit;
 assign  use_DIRMAP  = ~crmd_da & crmd_pg & dmw_hit;
 assign  use_DIR     = crmd_da & ~crmd_pg;
 
-assign  except      = {has_PIL, has_PIS, has_PIF, has_PME, has_PPI, has_TLBR} & {5{use_TLBMAP}};
+assign  except      = {has_PIL, has_PIS, has_PIF, has_PME, has_PPI, has_TLBR} & {6{use_TLBMAP & en}};
 assign  pa          = {32{use_TLBMAP}} & TLBMAP_pa
                     | {32{use_DIRMAP}} & DIRMAP_pa
                     | {32{use_DIR}} & DIR_pa;

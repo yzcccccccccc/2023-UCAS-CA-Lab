@@ -165,7 +165,7 @@ assign has_int = ((csr_estat_is[12:0] & csr_ecfg_lie[12:0]) != 13'b0)
                 && (csr_crmd_ie == 1'b1);
 
 // ex_entry
-assign ex_entry = {csr_eentry_va,6'b0};
+assign ex_entry     = (wb_ecode == `ECODE_TLBR) ? {csr_tlbrentry_pa, 6'b0} : {csr_eentry_va,6'b0};
 
 // era_pc
 assign era_pc = csr_era_pc;
@@ -224,6 +224,7 @@ assign era_pc = csr_era_pc;
     end
 
 // crmd_datf & crmd_datm
+    /* The testbench is strange... */
     wire    csr_crmd_pg_next;
     assign  csr_crmd_pg_next    = csr_wmask[`CSR_CRMD_PG] & csr_wvalue[`CSR_CRMD_PG]
                                 | ~csr_wmask[`CSR_CRMD_PG] & csr_crmd_pg;
@@ -235,16 +236,16 @@ assign era_pc = csr_era_pc;
         end
         else
             if (csr_we & csr_num == `CSR_CRMD) begin
-                if (csr_crmd_pg_next) begin
-                    csr_crmd_datf   <= 2'b01;
-                    csr_crmd_datm   <= 2'b01;
-                end
-                else begin
+                //if (csr_crmd_pg_next) begin
+                //    csr_crmd_datf   <= 2'b01;
+                //    csr_crmd_datm   <= 2'b01;
+                //end
+                //else begin
                     csr_crmd_datf   <= csr_wmask[`CSR_CRMD_DATF] & csr_wvalue[`CSR_CRMD_DATF]
                                     | ~csr_wmask[`CSR_CRMD_DATF] & csr_crmd_datf;
                     csr_crmd_datm   <= csr_wmask[`CSR_CRMD_DATM] & csr_wvalue[`CSR_CRMD_DATM]
                                     | ~csr_wmask[`CSR_CRMD_DATM] & csr_crmd_datm;
-                end
+                //end
             end
     end
     
@@ -325,7 +326,8 @@ assign era_pc = csr_era_pc;
 
 // badv_vaddr
     wire wb_ex_addr_err;
-    assign wb_ex_addr_err = wb_ecode==`ECODE_ADE || wb_ecode==`ECODE_ALE;
+    assign wb_ex_addr_err   = wb_ecode==`ECODE_ADE || wb_ecode==`ECODE_ALE || wb_ecode==`ECODE_PIL || wb_ecode==`ECODE_PIF || wb_ecode==`ECODE_PIS
+                           || wb_ecode==`ECODE_PPI || wb_ecode==`ECODE_PME || wb_ecode==`ECODE_TLBR;
     always @(posedge clk)
     begin
         if (wb_ex && wb_ex_addr_err)
@@ -625,7 +627,7 @@ assign era_pc = csr_era_pc;
             csr_dmw1_vseg   <= 0;
         end
         else
-            if (csr_we && csr_num == `CSR_DMW0) begin
+            if (csr_we && csr_num == `CSR_DMW1) begin
                 csr_dmw1_plv0   <= csr_wmask[`CSR_DMW_PLV0] & csr_wvalue[`CSR_DMW_PLV0]
                                 | ~csr_wmask[`CSR_DMW_PLV0] & csr_dmw1_plv0;
                 csr_dmw1_plv3   <= csr_wmask[`CSR_DMW_PLV3] & csr_wvalue[`CSR_DMW_PLV3]
@@ -723,5 +725,7 @@ assign csr_rvalue = {32{csr_num==`CSR_CRMD}} & csr_crmd_rvalue
 assign csr_asid     = csr_asid_rvalue;
 assign csr_crmd     = csr_crmd_rvalue;
 assign csr_tlbehi   = csr_tlbehi_rvalue;
+assign csr_dmw0     = csr_dmw0_rvalue;
+assign csr_dmw1     = csr_dmw1_rvalue;
 
 endmodule
