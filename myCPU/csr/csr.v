@@ -648,7 +648,7 @@ assign era_pc = csr_era_pc;
     // TLB Write
     assign  we          = tlbfill_req | tlbwr_req;
     assign  w_index     = csr_tlbidx_index;
-    assign  w_e         = ~csr_tlbidx_ne || (csr_estat_ecode == 6'h3f);
+    assign  w_e         = csr_estat_ecode == 6'h3f ? 1'b1 : ~csr_tlbidx_ne;
     assign  w_vppn      = csr_tlbehi_vppn;
     assign  w_ps        = csr_tlbidx_ps;
     assign  w_asid      = csr_asid_asid;
