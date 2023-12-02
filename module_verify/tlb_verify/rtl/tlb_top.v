@@ -175,7 +175,7 @@ tlb #(.TLBNUM(16)) tlb (
 // write \ read
 
 //  index  | e | vppn   | ps   | asid |  g  |  ppn0  |  plv0 mat0 d0 v0 |  ppn1  |  plv1 mat1 d1 v1 |
-//   0     | 1 | 0x1000 | 0x16 | 0x0  |  0  |  0x1000|     0,1,1,1      |  0x1000|     0,1,1,1      | 
+//   0     | 1 | 0x1000 | 0x15 | 0x0  |  0  |  0x1000|     0,1,1,1      |  0x1100|     0,1,1,1      | 
 //   1     | 1 | 0x111  | 0xc  | 0x1  |  1  |  0x222 |     0,1,1,1      |  0x033 |     0,1,1,1      | 
 //   2     | 1 | 0x222  | 0xc  | 0x2  |  0  |  0x333 |     0,1,1,1      |  0x044 |     0,1,1,1      | 
 //   3     | 1 | 0x333  | 0xc  | 0x3  |  1  |  0x444 |     0,1,1,1      |  0x055 |     0,1,1,1      | 
@@ -190,7 +190,7 @@ tlb #(.TLBNUM(16)) tlb (
 //   12    | 1 | 0xccc  | 0xc  | 0xc  |  0  |  0xddd |     0,1,1,1      |  0x0ee |     0,1,1,1      | 
 //   13    | 1 | 0xddd  | 0xc  | 0xd  |  0  |  0xeee |     0,1,1,1      |  0x0ff |     0,1,1,1      | 
 //   14    | 1 | 0xeee  | 0xc  | 0xe  |  0  |  0xfff |     0,1,1,1      |  0x000 |     0,1,1,1      | 
-//   15    | 1 | 0xf000 | 0x16 | 0xf  |  0  |  0x0000|     0,1,1,1      |  0x0000|     0,1,1,1      | 
+//   15    | 1 | 0xf000 | 0x15 | 0xf  |  0  |  0x2000|     0,1,1,1      |  0x2100|     0,1,1,1      | 
 
 wire [18:0] tlb_vppn [15:0];
 wire        tlb_e    [15:0];
@@ -242,7 +242,7 @@ assign tlb_e[13] = 1'b1;
 assign tlb_e[14] = 1'b1;
 assign tlb_e[15] = 1'b1;
 
-assign tlb_ps[ 0] = 6'h16;
+assign tlb_ps[ 0] = 6'h15;
 assign tlb_ps[ 1] = 6'hc;
 assign tlb_ps[ 2] = 6'hc;
 assign tlb_ps[ 3] = 6'hc;
@@ -257,7 +257,7 @@ assign tlb_ps[11] = 6'hc;
 assign tlb_ps[12] = 6'hc;
 assign tlb_ps[13] = 6'hc;
 assign tlb_ps[14] = 6'hc;
-assign tlb_ps[15] = 6'h16;
+assign tlb_ps[15] = 6'h15;
 
 assign tlb_asid[ 0] = 10'h0;
 assign tlb_asid[ 1] = 10'h1;
@@ -308,7 +308,7 @@ assign tlb_ppn0[11] = 20'hccc;
 assign tlb_ppn0[12] = 20'hddd;
 assign tlb_ppn0[13] = 20'heee;
 assign tlb_ppn0[14] = 20'hfff;
-assign tlb_ppn0[15] = 20'h0000;
+assign tlb_ppn0[15] = 20'h2000;
 
 assign tlb_plv0[ 0] = 2'd0;
 assign tlb_plv0[ 1] = 2'd0;
@@ -378,7 +378,7 @@ assign tlb_v0[13] = 1'h1;
 assign tlb_v0[14] = 1'h1;
 assign tlb_v0[15] = 1'h1;
 
-assign tlb_ppn1[ 0] = 20'h1000;
+assign tlb_ppn1[ 0] = 20'h1100;
 assign tlb_ppn1[ 1] = 20'h033;
 assign tlb_ppn1[ 2] = 20'h044;
 assign tlb_ppn1[ 3] = 20'h055;
@@ -393,7 +393,7 @@ assign tlb_ppn1[11] = 20'h0dd;
 assign tlb_ppn1[12] = 20'h0ee;
 assign tlb_ppn1[13] = 20'h0ff;
 assign tlb_ppn1[14] = 20'h000;
-assign tlb_ppn1[15] = 20'h0000;
+assign tlb_ppn1[15] = 20'h2100;
 
 assign tlb_plv1[ 0] = 2'd0;
 assign tlb_plv1[ 1] = 2'd0;
@@ -465,8 +465,8 @@ assign tlb_v1[15] = 1'h1;
 
 //search
 // s_vppn  |  s_va_bit12  | s_asid  |  s_found  |  s_index  |  s_ppn  | s_ps | s_plv s_mat s_d s_v |
-//  0x1000 |         0x1  |    0x0  |        1  |        0  |  0x1000 | 0x16 |     0,1,1,1         |
-//  0x1100 |         0x0  |    0x0  |        1  |        0  |  0x1000 | 0x16 |     0,1,1,1         |
+//  0x1000 |         0x1  |    0x0  |        1  |        0  |  0x1000 | 0x15 |     0,1,1,1         |
+//  0x1100 |         0x0  |    0x0  |        1  |        0  |  0x1100 | 0x15 |     0,1,1,1         |
 //  0x1000 |         0x1  |    0x1  |        0  |        x  |  0xxxx  |   x  |     x,x,x,x         |
 //  0x111  |         0x1  |    0x0  |        1  |        1  |  0x033  | 0xc  |     0,1,1,1         |
 //  0x111  |         0x0  |    0x1  |        1  |        1  |  0x222  | 0xc  |     0,1,1,1         |
@@ -488,7 +488,7 @@ assign tlb_v1[15] = 1'h1;
 //  0xccc  |         0x0  |    0xc  |        1  |       12  |  0xddd  | 0xc  |     0,1,1,1         |
 //  0xddd  |         0x1  |    0xd  |        1  |       13  |  0x0ff  | 0xc  |     0,1,1,1         |
 //  0xeee  |         0x0  |    0xe  |        1  |       14  |  0xfff  | 0xc  |     0,1,1,1         |
-//  0xf000 |         0x0  |    0xf  |        1  |       15  |  0x0000 | 0x16 |     0,1,1,1         |
+//  0xf000 |         0x0  |    0xf  |        1  |       15  |  0x2000 | 0x15 |     0,1,1,1         |
 //  0xabc  |         0x0  |    0xf  |        0  |        x  |  0xxxx  |   x  |     x,x,x,x         |
 //  0x123  |         0x1  |    0x3  |        0  |        x  |  0xxxx  |   x  |     x,x,x,x         |
 
@@ -640,7 +640,7 @@ assign s_test_index[24] = 4'hx;
 assign s_test_index[25] = 4'hx;
 
 assign s_test_ppn[ 0] = 20'h1000;
-assign s_test_ppn[ 1] = 20'h1000;
+assign s_test_ppn[ 1] = 20'h1100;
 assign s_test_ppn[ 2] = 20'hxxx;
 assign s_test_ppn[ 3] = 20'h033;
 assign s_test_ppn[ 4] = 20'h222;
@@ -662,12 +662,12 @@ assign s_test_ppn[19] = 20'h0dd;
 assign s_test_ppn[20] = 20'hddd;
 assign s_test_ppn[21] = 20'h0ff;
 assign s_test_ppn[22] = 20'hfff;
-assign s_test_ppn[23] = 20'h0000;
+assign s_test_ppn[23] = 20'h2000;
 assign s_test_ppn[24] = 20'hxxx;
 assign s_test_ppn[25] = 20'hxxx;
 
-assign s_test_ps[ 0] = 14'h16;
-assign s_test_ps[ 1] = 14'h16;
+assign s_test_ps[ 0] = 14'h15;
+assign s_test_ps[ 1] = 14'h15;
 assign s_test_ps[ 2] = 14'hx;
 assign s_test_ps[ 3] = 14'hc;
 assign s_test_ps[ 4] = 14'hc;
@@ -689,7 +689,7 @@ assign s_test_ps[19] = 14'hc;
 assign s_test_ps[20] = 14'hc;
 assign s_test_ps[21] = 14'hc;
 assign s_test_ps[22] = 14'hc;
-assign s_test_ps[23] = 14'h16;
+assign s_test_ps[23] = 14'h15;
 assign s_test_ps[24] = 14'hx;
 assign s_test_ps[25] = 14'hx;
 
