@@ -2,9 +2,9 @@
 2019.2
 Nov  6 2019
 21:57:16
-D:/Labs/CALab/mycpu_env/gettrace/gettrace.sim/sim_1/behav/xsim/glbl.v,1573089660,verilog,,,,glbl,,,,,,,,
+D:/Labs/CALab/mycpu_env/gettrace/gettrace.sim/sim_1/behav/xsim/glbl.v,1701526321,verilog,,,,glbl,,,,,,,,
 D:/Labs/CALab/mycpu_env/gettrace/src/BRIDGE/bridge_1x2.v,1701312218,verilog,,D:/Labs/CALab/mycpu_env/gettrace/src/CONFREG/confreg.v,,bridge_1x2,,,,,,,,
 D:/Labs/CALab/mycpu_env/gettrace/src/CONFREG/confreg.v,1701312219,verilog,,D:/Labs/CALab/mycpu_env/gettrace/src/soc_lite_top.v,,confreg,,,,,,,,
-D:/Labs/CALab/mycpu_env/gettrace/src/myCPU/SimpleLACoreWrapRAM.v,1701312219,verilog,,D:/Labs/CALab/mycpu_env/gettrace/src/BRIDGE/bridge_1x2.v,,SimpleLACore;SimpleLACoreWrapRAM,,,,,,,,
+D:/Labs/CALab/mycpu_env/gettrace/src/myCPU/SimpleLACoreWrapRAM.v,1701526325,verilog,,D:/Labs/CALab/mycpu_env/gettrace/src/BRIDGE/bridge_1x2.v,,SimpleLACore;SimpleLACoreWrapRAM,,,,,,,,
 D:/Labs/CALab/mycpu_env/gettrace/src/soc_lite_top.v,1701312219,verilog,,D:/Labs/CALab/mycpu_env/gettrace/src/tb_top.v,,soc_lite_top,,,,,,,,
 D:/Labs/CALab/mycpu_env/gettrace/src/tb_top.v,1701312219,verilog,,,,tb_top,,,,,,,,
