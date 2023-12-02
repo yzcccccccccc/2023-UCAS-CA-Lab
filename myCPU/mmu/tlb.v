@@ -4,21 +4,27 @@
 
 TLB format:
 1) comparing part
-    |       VPNN        |   PS  |   G   |   ASID    |   E   |
-    31                  18      12      11          1       0
+    |       VPPN        |   PS  |   G   |   ASID    |   E   |
+    35                  18      12      11          1       0
 
     E:      1 bit, mark the existence of the PTE
     ASID:   10 bits, kinda like pid?
     G:      1 bit, global, set to 1 to avoid checking ASID
     PS:     6 bits, size. In LA32, only 4MB and 4KB are available, so
-            it's either 12 or 22
+            it's either 12 or 21 (4MB is splited into 2 * 2MB)
     VPPN:   18 bits (if VALEN = 32), one PTE manages 2 virtual pages,
-            VPPN = VPN / 2.
+            VPPN = VPN / 2. 
+            As for 4KB page: 
+            LEN(VPN) = (32 - 12) = 20,
+            LEN(VPPN) = LEN(VPN) - 1 = 19. 
+            As for 4MB page (bullshit, actually it's 2MB):
+            LEN(VPN) = (32 - 21) = 11,
+            LEN(VPPN) = LEN(VPN) - 1 = 10
 
 2) converting part
     |       PPN0        |   PLV0    |   MAT0    |   D0  |   V0  |
     |       PPN1        |   PLV1    |   MAT1    |   D1  |   V1  |
-    31                  6           4           2       1       0
+    25                  6           4           2       1       0
 
     V:      1 bit. valid. 1 stands for valid and accessed
     D:      1 bit. dirty. 1 stands for existing dirty data within
@@ -55,7 +61,7 @@ module tlb
     input   wire                        s1_va_bit12,
     input   wire [9:0]                  s1_asid,
     output  wire                        s1_found,
-    output  wire [$clog2(TLBNUM - 1):0] s1_index,
+    output  wire [$clog2(TLBNUM)-1:0]   s1_index,
     output  wire [19:0]                 s1_ppn,
     output  wire [5:0]                  s1_ps,
     output  wire [1:0]                  s1_plv,
@@ -127,11 +133,11 @@ genvar  i;
     wire [TLBNUM - 1:0]     match0, match1;
     generate
         for (i = 0; i < TLBNUM; i = i + 1) begin : Look_up_wire_gen
-            assign match0[i]    = (s0_vppn[18:10] == tlb_vppn[i][18:10])
-                                && (tlb_ps4MB[i] || s0_vppn[9:0] == tlb_vppn[i][9:0])           // 4MB only has to check the high 9 bits
+            assign match0[i]    = (s0_vppn[18:9] == tlb_vppn[i][18:9])
+                                && (tlb_ps4MB[i] || s0_vppn[8:0] == tlb_vppn[i][8:0])           // 4MB only has to check the high 10 bits
                                 && (tlb_g[i] || s0_asid == tlb_asid[i]);
-            assign match1[i]    = (s1_vppn[18:10] == tlb_vppn[i][18:10])
-                                && (tlb_ps4MB[i] || s1_vppn[9:0] == tlb_vppn[i][9:0])
+            assign match1[i]    = (s1_vppn[18:9] == tlb_vppn[i][18:9])
+                                && (tlb_ps4MB[i] || s1_vppn[8:0] == tlb_vppn[i][8:0])
                                 && (tlb_g[i] || s1_asid == tlb_asid[i]);
         end
     endgenerate
@@ -143,33 +149,34 @@ genvar  i;
                     | {4{match0[4]}} & 4'd4     | {4{match0[5]}} & 4'd5     | {4{match0[6]}} & 4'd6     | {4{match0[7]}} & 4'd7
                     | {4{match0[8]}} & 4'd8     | {4{match0[9]}} & 4'd9     | {4{match0[10]}} & 4'd10   | {4{match0[11]}} & 4'd11
                     | {4{match0[12]}} & 4'd12   | {4{match0[13]}} & 4'd13   | {4{match0[14]}} & 4'd14   | {4{match0[15]}} & 4'd15;
+
     assign s1_index = {4{match1[0]}} & 4'd0     | {4{match1[1]}} & 4'd1     | {4{match1[2]}} & 4'd2     | {4{match1[3]}} & 4'd3
                     | {4{match1[4]}} & 4'd4     | {4{match1[5]}} & 4'd5     | {4{match1[6]}} & 4'd6     | {4{match1[7]}} & 4'd7
                     | {4{match1[8]}} & 4'd8     | {4{match1[9]}} & 4'd9     | {4{match1[10]}} & 4'd10   | {4{match1[11]}} & 4'd11
                     | {4{match1[12]}} & 4'd12   | {4{match1[13]}} & 4'd13   | {4{match1[14]}} & 4'd14   | {4{match1[15]}} & 4'd15;
 
     wire    s0_page_dec_bit, s1_page_dec_bit;              // 0 for even page, 1 for odd page
-    assign s0_page_dec_bit  = tlb_ps4MB[s0_index] ? s0_vppn[9] : s0_va_bit12;               // 4KB and 4MB are different at the position of the bit
-    assign s1_page_dec_bit  = tlb_ps4MB[s1_index] ? s1_vppn[9] : s1_va_bit12;
+    assign s0_page_dec_bit  = tlb_ps4MB[s0_index] ? s0_vppn[8] : s0_va_bit12;               // 4KB and 4MB are different at the position of the bit
+    assign s1_page_dec_bit  = tlb_ps4MB[s1_index] ? s1_vppn[8] : s1_va_bit12;
 
     assign s0_ppn   = s0_page_dec_bit ? tlb_ppn1[s0_index] : tlb_ppn0[s0_index];
     assign s0_plv   = s0_page_dec_bit ? tlb_plv1[s0_index] : tlb_plv0[s0_index];
     assign s0_mat   = s0_page_dec_bit ? tlb_mat1[s0_index] : tlb_mat0[s0_index];
     assign s0_d     = s0_page_dec_bit ? tlb_d1[s0_index] : tlb_d0[s0_index];
     assign s0_v     = s0_page_dec_bit ? tlb_v1[s0_index] : tlb_v0[s0_index];
-    assign s0_ps    = tlb_ps4MB[s0_index] ? 6'd22 : 6'd12;
+    assign s0_ps    = tlb_ps4MB[s0_index] ? 6'd21 : 6'd12;
 
     assign s1_ppn   = s1_page_dec_bit ? tlb_ppn1[s1_index] : tlb_ppn0[s1_index];
     assign s1_plv   = s1_page_dec_bit ? tlb_plv1[s1_index] : tlb_plv0[s1_index];
     assign s1_mat   = s1_page_dec_bit ? tlb_mat1[s1_index] : tlb_mat0[s1_index];
     assign s1_d     = s1_page_dec_bit ? tlb_d1[s1_index] : tlb_d0[s1_index];
     assign s1_v     = s1_page_dec_bit ? tlb_v1[s1_index] : tlb_v0[s1_index];
-    assign s1_ps    = tlb_ps4MB[s1_index] ? 6'd22 : 6'd12;
+    assign s1_ps    = tlb_ps4MB[s1_index] ? 6'd21 : 6'd12;
 
 //--------------------------- TLB Read ---------------------------
     assign r_vppn   = tlb_vppn[r_index];
     assign r_e      = tlb_e[r_index];
-    assign r_ps     = tlb_ps4MB[r_index] ? 6'd22 : 6'd12;
+    assign r_ps     = tlb_ps4MB[r_index] ? 6'd21 : 6'd12;
     assign r_asid   = tlb_asid[r_index];
     assign r_g      = tlb_g[r_index];
 
@@ -214,7 +221,7 @@ genvar  i;
         if (we) begin
             tlb_e[w_index]      <= w_e;
             tlb_vppn[w_index]   <= w_vppn;
-            tlb_ps4MB[w_index]  <= (w_ps == 6'd22) ? 1 : 0;
+            tlb_ps4MB[w_index]  <= (w_ps == 6'd21) ? 1 : 0;
             tlb_asid[w_index]   <= w_asid;
             tlb_g[w_index]      <= w_g;
 
