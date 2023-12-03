@@ -135,17 +135,19 @@ genvar  i;
         for (i = 0; i < TLBNUM; i = i + 1) begin : Look_up_wire_gen
             assign match0[i]    = (s0_vppn[18:9] == tlb_vppn[i][18:9])
                                 && (tlb_ps4MB[i] || s0_vppn[8:0] == tlb_vppn[i][8:0])           // 4MB only has to check the high 10 bits
-                                && (tlb_g[i] || s0_asid == tlb_asid[i]);
+                                && (tlb_g[i] || s0_asid == tlb_asid[i])
+                                && tlb_e[i];
             assign match1[i]    = (s1_vppn[18:9] == tlb_vppn[i][18:9])
                                 && (tlb_ps4MB[i] || s1_vppn[8:0] == tlb_vppn[i][8:0])
-                                && (tlb_g[i] || s1_asid == tlb_asid[i]);
+                                && (tlb_g[i] || s1_asid == tlb_asid[i])
+                                && tlb_e[i];
         end
     endgenerate
 
     assign s0_found = |match0;
     assign s1_found = |match1;
 
-    /*assign s0_index = {4{match0[0]}} & 4'd0     | {4{match0[1]}} & 4'd1     | {4{match0[2]}} & 4'd2     | {4{match0[3]}} & 4'd3
+    assign s0_index = {4{match0[0]}} & 4'd0     | {4{match0[1]}} & 4'd1     | {4{match0[2]}} & 4'd2     | {4{match0[3]}} & 4'd3
                     | {4{match0[4]}} & 4'd4     | {4{match0[5]}} & 4'd5     | {4{match0[6]}} & 4'd6     | {4{match0[7]}} & 4'd7
                     | {4{match0[8]}} & 4'd8     | {4{match0[9]}} & 4'd9     | {4{match0[10]}} & 4'd10   | {4{match0[11]}} & 4'd11
                     | {4{match0[12]}} & 4'd12   | {4{match0[13]}} & 4'd13   | {4{match0[14]}} & 4'd14   | {4{match0[15]}} & 4'd15;
@@ -153,39 +155,7 @@ genvar  i;
     assign s1_index = {4{match1[0]}} & 4'd0     | {4{match1[1]}} & 4'd1     | {4{match1[2]}} & 4'd2     | {4{match1[3]}} & 4'd3
                     | {4{match1[4]}} & 4'd4     | {4{match1[5]}} & 4'd5     | {4{match1[6]}} & 4'd6     | {4{match1[7]}} & 4'd7
                     | {4{match1[8]}} & 4'd8     | {4{match1[9]}} & 4'd9     | {4{match1[10]}} & 4'd10   | {4{match1[11]}} & 4'd11
-                    | {4{match1[12]}} & 4'd12   | {4{match1[13]}} & 4'd13   | {4{match1[14]}} & 4'd14   | {4{match1[15]}} & 4'd15;*/
-    assign s0_index =  match0[ 1] ? 4'd1  :
-                    match0[ 2] ? 4'd2  :
-                    match0[ 3] ? 4'd3  :
-                    match0[ 4] ? 4'd4  :
-                    match0[ 5] ? 4'd5  :
-                    match0[ 6] ? 4'd6  :
-                    match0[ 7] ? 4'd7  :
-                    match0[ 8] ? 4'd8  :
-                    match0[ 9] ? 4'd9  :
-                    match0[10] ? 4'd10 :
-                    match0[11] ? 4'd11 :
-                    match0[12] ? 4'd12 :
-                    match0[13] ? 4'd13 :
-                    match0[14] ? 4'd14 :
-                    match0[15] ? 4'd15 :
-                    4'd0;
-    assign s1_index =  match1[ 1] ? 4'd1  :
-                    match1[ 2] ? 4'd2  :
-                    match1[ 3] ? 4'd3  :
-                    match1[ 4] ? 4'd4  :
-                    match1[ 5] ? 4'd5  :
-                    match1[ 6] ? 4'd6  :
-                    match1[ 7] ? 4'd7  :
-                    match1[ 8] ? 4'd8  :
-                    match1[ 9] ? 4'd9  :
-                    match1[10] ? 4'd10 :
-                    match1[11] ? 4'd11 :
-                    match1[12] ? 4'd12 :
-                    match1[13] ? 4'd13 :
-                    match1[14] ? 4'd14 :
-                    match1[15] ? 4'd15 :
-                    4'd0;
+                    | {4{match1[12]}} & 4'd12   | {4{match1[13]}} & 4'd13   | {4{match1[14]}} & 4'd14   | {4{match1[15]}} & 4'd15;
 
     wire    s0_page_dec_bit, s1_page_dec_bit;              // 0 for even page, 1 for odd page
     assign s0_page_dec_bit  = tlb_ps4MB[s0_index] ? s0_vppn[8] : s0_va_bit12;               // 4KB and 4MB are different at the position of the bit
