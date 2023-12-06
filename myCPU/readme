@@ -91,3 +91,12 @@
 2023.11.27
 [info] yzcc
     完成TLB模块(tlb.v)，通过仿真
+
+2023.11.29
+[info] yzcc
+    1.  refetch_tag: 当前这条指令是否需要重取
+        refetch_detect: 当前这条指令是否会导致其后的指令发生重取
+
+2023.11.30
+[info] yzcc
+    1. exp18通过仿真，暂未上板

@@ -24,3 +24,8 @@
 * 涉及preIF和IF中指令取消的部分我的评价是依托答辩，具体细节在IF.v中的注释写了挺多了
 * 在DHD中增加逻辑，当WB级通知需要处理ex或者ertn时，不允许发出阻塞信号
 * 在divider中增加逻辑，当WB级通知需要处理ex或者ertn时，状态机立即切换并发出done信号
+
+### EXP18
+* 结构：  
+![Alt text](pic/c22006f17a2dfa13b7e3419e8dcc168.jpg)
+* refetch_flush在IF（preIF）级中当成cancel的情况处理（和ertn一致？）

@@ -1,17 +1,21 @@
 `define BR_BUS_LEN      34
 
-`define IFReg_BUS_LEN   80      /* IF2ID    = {ebus_end, inst, pc} */
+`define IFReg_BUS_LEN   81      /* IF2ID    = {ebus_end, inst, pc, refetch_tag} */
 
 `define ID2EX_LEN       96      /* ID2EX    = {rdcntv_op, ebus_end, alu_op, alu_src1, alu_src2, mul, div} */
 `define ID2MEM_LEN      41      /* ID2MEM   = {rkd_value, mem_en, st_ctrl, ld_ctrl} */
 `define ID2WB_LEN       122     /* ID2WB    = {pause_int_detect, ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc} */
-`define IDReg_BUS_LEN   259     /* = {ID2EX, ID2MEM, ID2WB} */
+`define ID_TLB_LEN      15      /* IDTLB    = {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, invtlb_valid, invtlb_op, refetch_detect, tlbsrch_pause_detect, refetch_tag}*/
+`define IDReg_BUS_LEN   274     /* = {ID2EX, ID2MEM, ID2WB, ID_TLB} */
 
 `define EX2MEM_LEN      119     /* EX2MEM   = {wait_data_ok, ebus_end, mul, mul_result, EX_result, rdk_value, ld_ctrl}*/
 `define EX2WB_LEN       122
-`define EXReg_BUS_LEN   241     /* = {EXreg_2MEM, EXreg_2WB}; */
+`define EX_TLB_LEN      12      /* EXTLB    = {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, refetch_detect, tlbsrch_pause_detect, refetch_tag} */
+`define EXReg_BUS_LEN   253     /* = {EXreg_2MEM, EXreg_2WB, EXTLB}; */
 
-`define MEMReg_BUS_LEN  169     /* MEM2WB  = {pause_int_detect, ebus_end, ertn_flush, csr_ctrl, res_from_csr, MEM_final_result, rf_we, rf_waddr, pc}*/
+`define MEM_TLB_LEN     12      /* MEMTLB   = {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, refetch_detect, tlbsrch_pause_detect, refetch_tag}*/
+`define MEM2WB_LEN      169     /* MEM2WB   = {pause_int_detect, ebus_end, ertn_flush, csr_ctrl, res_from_csr, MEM_final_result, rf_we, rf_waddr, pc}*/
+`define MEMReg_BUS_LEN  181     /* = {MEM2wb, MEMTLB} */
 
 // Data Forward Bypass
 `define EX_BYPASS_LEN   42
@@ -51,27 +55,47 @@
 `define CSR_DMW1        14'h181
 
 // CSR bits
-`define CSR_CRMD_PLV    1:0
-`define CSR_CRMD_IE     2
-`define CSR_CRMD_DA     3
-`define CSR_CRMD_PG     4
-`define CSR_CRMD_DATF   6:5
-`define CSR_CRMD_DATM   8:7
-`define CSR_PRMD_PPLV   1:0
-`define CSR_PRMD_PIE    2
-`define CSR_ECFG_LIE    12:0
-`define CSR_ESTAT_IS10  1:0
-`define CSR_ERA_PC      31:0
-`define CSR_EENTRY_VA   31:6
-`define CSR_SAVE_DATA   31:0
-`define CSR_TICLR_CLR   0
-`define CSR_TID_TID     31:0
-`define CSR_TCFG_EN     0
-`define CSR_TCFG_PERIOD 1
-`define CSR_TCFG_INITV  31:2
+`define CSR_CRMD_PLV        1:0
+`define CSR_CRMD_IE         2
+`define CSR_CRMD_DA         3
+`define CSR_CRMD_PG         4
+`define CSR_CRMD_DATF       6:5
+`define CSR_CRMD_DATM       8:7
+`define CSR_PRMD_PPLV       1:0
+`define CSR_PRMD_PIE        2
+`define CSR_ECFG_LIE        12:0
+`define CSR_ESTAT_IS10      1:0
+`define CSR_ERA_PC          31:0
+`define CSR_EENTRY_VA       31:6
+`define CSR_SAVE_DATA       31:0
+`define CSR_TICLR_CLR       0
+`define CSR_TID_TID         31:0
+`define CSR_TCFG_EN         0
+`define CSR_TCFG_PERIOD     1
+`define CSR_TCFG_INITV      31:2
+`define CSR_TLBIDX_INDEX    3:0                 // n = log2(TLBNUM) = log2(16) = 4
+`define CSR_TLBIDX_PS       29:24
+`define CSR_TLBIDX_NE       31
+`define CSR_TLBEHI_VPPN     31:13
+`define CSR_TLBELO_V        0
+`define CSR_TLBELO_D        1
+`define CSR_TLBELO_PLV      3:2
+`define CSR_TLBELO_MAT      5:4
+`define CSR_TLBELO_G        6
+`define CSR_TLBELO_PPN      31:8
+`define CSR_ASID_ASID       9:0
+`define CSR_ASID_ASIDBITS   23:16
+`define CSR_PGDH_BASE       31:12               // GRLEN - 1:12
+`define CSR_PGD_BASE        31:12               // GRLEN - 1:12
+`define CSR_TLBRENTRY_PA    31:6
+`define CSR_DMW_PLV0        0
+`define CSR_DMW_PLV3        3
+`define CSR_DMW_MAT         5:4
+`define CSR_DMW_PSEG        27:25
+`define CSR_DMW_VSEG        31:29
 
 // WB to CSR bus
-`define WB2CSR_LEN      81          /* = {ertn_flush, wb_ex, wb_ecode[5:0], wb_esubcode[8:0], wb_pc[31:0], wb_vaddr[31:0]} */
+`define WB2CSR_LEN      90          /* = {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, ertn_flush, wb_ex, wb_ecode[5:0], wb_esubcode[8:0], wb_pc[31:0], wb_vaddr[31:0]} */
 
 // CSR Exception Code
 `define ECODE_INT         6'h00
@@ -109,3 +133,5 @@
 `define EBUS_FPD          4'd13
 `define EBUS_FPE          4'd14
 `define EBUS_TLBR         4'd15
+
+`define TLBNUM              16

@@ -1,45 +1,49 @@
 `include "../macro.vh"
 
 module ID(
-           input   wire        clk,
-           input   wire        reset,
+       input     wire        clk,
+       input     wire        reset,
+       input     wire        flush,
 
-           // timecnt
-           input   wire [63:0] timecnt,
+       // timecnt
+       input     wire [63:0] timecnt,
 
-           // valid & IFreg_bus
-           input   wire                        valid,
-           input   wire [`IFReg_BUS_LEN - 1:0] IFreg_bus,
+       // valid & IFreg_bus
+       input     wire                        valid,
+       input     wire [`IFReg_BUS_LEN - 1:0] IFreg_bus,
 
-           // control sigals
-           input   wire        IF_ready_go,
-           input   wire        EX_allow_in,
-           output  wire        ID_ready_go,
-           output  wire        ID_allow_in,
+       // control sigals
+       input     wire          IF_ready_go,
+       input     wire          EX_allow_in,
+       output    wire          ID_ready_go,
+       output    wire          ID_allow_in,
 
-           // Reg Files
-           output  wire [4:0]  rf_raddr1,
-           output  wire [4:0]  rf_raddr2,
-           input   wire [31:0] rf_rdata1,
-           input   wire [31:0] rf_rdata2,
+       // Reg Files
+       output    wire [4:0]    rf_raddr1,
+       output    wire [4:0]    rf_raddr2,
+       input     wire [31:0]   rf_rdata1,
+       input     wire [31:0]   rf_rdata2,
 
-           // Data Harzard
-           input   wire        pause,
-           input   wire        addr1_occur,
-           input   wire        addr2_occur,
-           input   wire [31:0] addr1_forward,
-           input   wire [31:0] addr2_forward,
+       // Data Harzard
+       input     wire          pause,
+       input     wire          addr1_occur,
+       input     wire          addr2_occur,
+       input     wire [31:0]   addr1_forward,
+       input     wire [31:0]   addr2_forward,
 
-           // interupt from csr
-           input   wire        has_int,
+       // interupt from csr
+       input     wire          has_int,
 
-           // IDreg bus
-           output  wire                        IDreg_valid,
-           output  wire [`IDReg_BUS_LEN - 1:0] IDreg_bus,
+       // refetch (to IF)
+       output    wire          refetch,
 
-           // BR bus
-           output  wire [`BR_BUS_LEN - 1:0] BR_BUS
-       );
+       // IDreg bus
+       output    wire                        IDreg_valid,
+       output    wire [`IDReg_BUS_LEN - 1:0] IDreg_bus,
+
+       // BR bus
+       output    wire [`BR_BUS_LEN - 1:0] BR_BUS
+);
 
 // ebus
 wire [15:0] ebus_init;
@@ -47,22 +51,29 @@ wire [15:0] ebus_end;
 wire        has_sys;
 wire        has_ine;
 wire        has_brk;
-wire [54:0] has_inst;
+wire [59:0] has_inst;
 
 // IFreg_bus Decode
 wire    [31:0]  inst, pc;
-assign  {ebus_init, inst, pc}  = IFreg_bus;
+wire            refetch_tag;
+assign  {ebus_init, inst, pc, refetch_tag}  = IFreg_bus;
 
 // CSR
-wire        res_from_csr;
-wire        csr_re, csr_we;
-wire [13:0] csr_num;
-wire [31:0] csr_wvalue, csr_wmask;
-wire [79:0] csr_ctrl;
-wire        pause_int_detect;
+wire          res_from_csr;
+wire          csr_re, csr_we;
+wire [13:0]   csr_num;
+wire [31:0]   csr_wvalue, csr_wmask;
+wire [79:0]   csr_ctrl;
+wire          pause_int_detect;
+
+// TLB
+wire          refetch_detect;             // [2023.11.29:yzcc] trigger the refetch signal when certain CSRs are gonna be modified.
+wire          tlbsrch_pause_detect;       // [2023.11.29:yzcc] trigger the pause signal when certain CSRs are gonna be modified.
+wire [4:0]    invtlb_op; 
+wire          invtlb_op_invalid;          // invtlb_op >= 0x7
 
 // stable counter
-wire [ 1:0] rdcntv_op;               // = {inst_rdcntvh_w,inst_rdcntvl_w}
+wire [ 1:0] rdcntv_op;                    // = {inst_rdcntvh_w,inst_rdcntvl_w}
 
 // ertn
 wire        ertn_flush;
@@ -197,6 +208,13 @@ wire        inst_rdcntvl_w;
 wire        inst_rdcntvh_w;
 wire        inst_rdcntid;
 
+// tlbsrch, tlbrd, tlbwr, tlbfill, invtlb (exp18)
+wire   inst_tlbsrch;
+wire   inst_tlbrd;
+wire   inst_tlbwr;
+wire   inst_tlbfill;
+wire   inst_invtlb;
+
 wire [31:0] alu_src1   ;
 wire [31:0] alu_src2   ;
 
@@ -294,6 +312,13 @@ assign inst_rdcntvl_w   = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h0
 assign inst_rdcntvh_w   = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h0] & op_19_15_d[5'h00] & op_14_10_d[5'h19] & op_9_5_d[5'h00];
 assign inst_rdcntid     = op_31_26_d[6'h00] & op_25_22_d[4'h0] & op_21_20_d[2'h0] & op_19_15_d[5'h00] & op_14_10_d[5'h18] & op_4_0_d[5'h00];
 
+// TLB instructions (exp18)
+assign inst_tlbsrch  = op_31_26_d[6'd01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h10] & op_14_10_d[5'h0a];
+assign inst_tlbrd    = op_31_26_d[6'd01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h10] & op_14_10_d[5'h0b];
+assign inst_tlbwr    = op_31_26_d[6'd01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h10] & op_14_10_d[5'h0c];
+assign inst_tlbfill  = op_31_26_d[6'd01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h10] & op_14_10_d[5'h0d];
+assign inst_invtlb   = op_31_26_d[6'd01] & op_25_22_d[4'h9] & op_21_20_d[2'h0] & op_19_15_d[5'h13 ];
+
 /***************************************************************************
     alu_op[2:0] is also used as mul_op,
     alu_op[3:0] is also used as div_op
@@ -359,8 +384,10 @@ assign src2_is_imm   = inst_slli_w |
 
 assign res_from_mem  = inst_ld_w | inst_ld_b | inst_ld_bu | inst_ld_h | inst_ld_hu;
 assign dst_is_r1     = inst_bl;
-assign gr_we         =  ~inst_st_w & ~inst_st_b & ~inst_st_h &
-       ~inst_beq & ~inst_bne & ~inst_b & ~inst_blt & ~inst_bge & ~inst_bltu & ~inst_bgeu & ~inst_ertn & ~ inst_syscall & ~inst_break;
+assign gr_we         = ~inst_st_w         & ~inst_st_b  & ~inst_st_h
+                     & ~inst_beq          & ~inst_bne   & ~inst_b            & ~inst_blt          & ~inst_bge 
+                     & ~inst_bltu         & ~inst_bgeu  & ~inst_ertn         & ~inst_syscall      & ~inst_break
+                     & ~inst_tlbfill      & ~inst_tlbrd & ~inst_tlbsrch      & ~inst_tlbwr        & ~inst_invtlb;
 assign st_ctrl  = {inst_st_w, inst_st_h, inst_st_b};
 assign ld_ctrl  = {inst_ld_w, inst_ld_b, inst_ld_bu, inst_ld_h, inst_ld_hu};
 assign mem_en        = res_from_mem | inst_st_w | inst_st_h | inst_st_b;
@@ -423,11 +450,44 @@ assign pause_int_detect = csr_we & (csr_num==`CSR_CRMD & csr_wmask[`CSR_CRMD_IE]
                                    |csr_num==`CSR_TCFG & csr_wmask[`CSR_TCFG_EN]
                                    |csr_num==`CSR_TICLR & csr_wmask[`CSR_TICLR_CLR]);
 
+// TLB
+/****************************************************************
+[2023.11.29] yzcc:
+       CRMD.DA, CRMD.PA, DMW0, DMW1 and ASID will infect the work 
+of MMU. When ID, EX, MEM and WB stages have instructions to modify 
+theses values, we must inform IF stage the you might have pulled 
+up a Fetch request with the wrong physical address. (namely 'need 
+to refetch')
+       Also, when MEM and WB stages have the instructions, we need 
+to inform EX stage about the 'need to refetch'.
+       TLBWR, TLBFILL, TLBRD, INVTLB also the same.
+****************************************************************/
+assign refetch_detect       = csr_we & (csr_num == `CSR_CRMD & (csr_wmask[`CSR_CRMD_DA] | csr_wmask[`CSR_CRMD_PG])
+                                   | csr_num == `CSR_DMW0
+                                   | csr_num == `CSR_DMW1
+                                   | csr_num == `CSR_ASID)
+                            | inst_tlbwr
+                            | inst_tlbfill
+                            | inst_tlbrd
+                            | inst_invtlb & ~invtlb_op_invalid;
+
+/****************************************************************
+[2023.11.29] yzcc:
+       TLBSRCH requires the value of CSR.ASID and CSR.TLBEHI, 
+which may be modified. When MEM and WB stages note the existence
+of these modification, pause the tlbsrch inst in EX stage.
+****************************************************************/
+assign tlbsrch_pause_detect = csr_we & (csr_num == `CSR_ASID || csr_num == `CSR_TLBEHI)
+                            | inst_tlbrd;
+
+assign invtlb_op            = rd;
+assign invtlb_op_invalid    = |invtlb_op[4:3] | (&invtlb_op[2:0]);
+
 // time counter
 assign rdcntv_op = {inst_rdcntvh_w, inst_rdcntvl_w};
 
 // exception
-assign has_sys = inst_syscall;
+assign has_sys = inst_syscall & valid;
 assign ebus_end = (has_int & valid) ? {{15-`EBUS_INT{1'b0}}, has_int, {`EBUS_INT{1'b0}}}
               : (|ebus_init) ? ebus_init
               : ({{15-`EBUS_SYS{1'b0}}, has_sys, {`EBUS_SYS{1'b0}}}
@@ -437,43 +497,49 @@ assign ertn_flush = inst_ertn;
 
 // exp13 ine
 // [hint] add new instruction to this
-assign has_inst = {inst_rdcntid, inst_rdcntvh_w, inst_rdcntvl_w, inst_break,
-                   inst_ertn, inst_syscall, inst_csrxchg, inst_csrwr, inst_csrrd,
-                   inst_ld_hu, inst_ld_bu, inst_st_h, inst_st_b, inst_ld_h, inst_ld_b,
-                   inst_bgeu, inst_bltu, inst_bge, inst_blt,
-                   inst_mod_wu, inst_div_wu, inst_mod_w, inst_div_w, inst_mulh_wu, inst_mulh_w, inst_mul_w,
-                   inst_pcaddu12i, inst_sra_w, inst_srl_w, inst_sll_w,
-                   inst_xori, inst_ori, inst_andi, inst_sltui, inst_slti,
-                   inst_lu12i_w, inst_bne, inst_beq, inst_bl, inst_b, inst_jirl,
-                   inst_st_w, inst_ld_w, inst_addi_w, inst_srai_w, inst_srli_w, inst_slli_w,
-                   inst_xor, inst_or, inst_and, inst_nor, inst_sltu, inst_slt, inst_sub_w, inst_add_w};
-assign has_ine = ~(|has_inst);
+assign has_inst = {  inst_tlbsrch, inst_tlbwr, inst_tlbrd, inst_tlbfill, inst_invtlb,
+                     inst_rdcntid, inst_rdcntvh_w, inst_rdcntvl_w, inst_break,
+                     inst_ertn, inst_syscall, inst_csrxchg, inst_csrwr, inst_csrrd,
+                     inst_ld_hu, inst_ld_bu, inst_st_h, inst_st_b, inst_ld_h, inst_ld_b,
+                     inst_bgeu, inst_bltu, inst_bge, inst_blt,
+                     inst_mod_wu, inst_div_wu, inst_mod_w, inst_div_w, inst_mulh_wu, inst_mulh_w, inst_mul_w,
+                     inst_pcaddu12i, inst_sra_w, inst_srl_w, inst_sll_w,
+                     inst_xori, inst_ori, inst_andi, inst_sltui, inst_slti,
+                     inst_lu12i_w, inst_bne, inst_beq, inst_bl, inst_b, inst_jirl,
+                     inst_st_w, inst_ld_w, inst_addi_w, inst_srai_w, inst_srli_w, inst_slli_w,
+                     inst_xor, inst_or, inst_and, inst_nor, inst_sltu, inst_slt, inst_sub_w, inst_add_w};
+assign has_ine = (~(|has_inst) | inst_invtlb & invtlb_op_invalid) & valid;
 
 // exp13 brk
-assign has_brk = inst_break;
+assign has_brk = inst_break & valid;
 
 // IDreg_bus
-wire    [`ID2EX_LEN - 1:0]  IDreg_2EX;
-wire    [`ID2MEM_LEN - 1:0] IDreg_2MEM;
-wire    [`ID2WB_LEN - 1:0]  IDreg_2WB;
+wire   [`ID2EX_LEN - 1:0]   IDreg_2EX;
+wire   [`ID2MEM_LEN - 1:0]  IDreg_2MEM;
+wire   [`ID2WB_LEN - 1:0]   IDreg_2WB;
+wire   [`ID_TLB_LEN - 1:0]  IDreg_TLB;
 
-assign IDreg_valid      = valid;
-assign IDreg_2EX        = {rdcntv_op, ebus_end, alu_op, alu_src1, alu_src2, mul, div};
-assign IDreg_2MEM       = {rkd_value, mem_en, st_ctrl, ld_ctrl};
-assign IDreg_2WB        = {pause_int_detect, ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc};
+assign IDreg_valid   = valid & ~refetch_tag;
+assign IDreg_2EX     = {rdcntv_op, ebus_end, alu_op, alu_src1, alu_src2, mul, div};
+assign IDreg_2MEM    = {rkd_value, mem_en, st_ctrl, ld_ctrl};
+assign IDreg_2WB     = {pause_int_detect, ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc};
+assign IDreg_TLB     = {inst_tlbsrch, inst_tlbwr, inst_tlbfill, inst_tlbrd, inst_invtlb, invtlb_op, refetch_detect, tlbsrch_pause_detect, refetch_tag};
 
-assign IDreg_bus        = {IDreg_2EX, IDreg_2MEM, IDreg_2WB};
+assign IDreg_bus     = {IDreg_2EX, IDreg_2MEM, IDreg_2WB, IDreg_TLB};
 
 // control signals
 assign ID_ready_go      = ~pause;
 assign ID_allow_in      = ~IDreg_valid | EX_allow_in & ID_ready_go;
+
+// refetch (to IF)
+assign refetch          = refetch_detect & valid & ~has_ine;
 
 // BR_BUS
 // br_taken_last is used to ensure that br_taken only duration 1 clock
 reg br_taken_last;
 always@(posedge clk)
 begin
-    if(reset)
+    if(reset | flush)
        br_taken_last <= 1'b0;
     else
        br_taken_last <= br_taken;

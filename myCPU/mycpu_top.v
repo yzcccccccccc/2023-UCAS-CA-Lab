@@ -3,28 +3,6 @@ module mycpu_top(
     input   wire        aclk,
     input   wire        aresetn,
 
-    // // inst sram interface (SRAM, exp14+)
-    // output  wire        inst_sram_req,
-    // output  wire        inst_sram_wr,
-    // output  wire [1:0]  inst_sram_size,
-    // output  wire [31:0] inst_sram_addr,
-    // output  wire [3:0]  inst_sram_wstrb,
-    // output  wire [31:0] inst_sram_wdata,
-    // input   wire        inst_sram_addr_ok,
-    // input   wire        inst_sram_data_ok,
-    // input   wire [31:0] inst_sram_rdata,
-
-    // // data sram interface (SRAM, exp14+)
-    // output  wire        data_sram_req,
-    // output  wire        data_sram_wr,
-    // output  wire [1:0]  data_sram_size,
-    // output  wire [31:0] data_sram_addr,
-    // output  wire [3:0]  data_sram_wstrb,
-    // output  wire [31:0] data_sram_wdata,
-    // input   wire        data_sram_addr_ok,
-    // input   wire        data_sram_data_ok,
-    // input   wire [31:0] data_sram_rdata,
-
     //AXI signals
     // read-acquire
     output wire [3:0]  arid,            //fs=0,ld=1
@@ -143,7 +121,7 @@ reg     [`EXReg_BUS_LEN - 1:0]  EXreg;
 reg                             MEMreg_valid;
 reg     [`MEMReg_BUS_LEN - 1:0] MEMreg;
 
-// RegFile
+//-----------------------------------RegFile-----------------------------------
 wire    [4:0]       rf_raddr1, rf_raddr2, rf_waddr;
 wire    [31:0]      rf_rdata1, rf_rdata2, rf_wdata;
 wire                rf_we;
@@ -159,34 +137,151 @@ regfile u_regfile(
         );
 
 // Exception
-    wire    wb_ex, ertn_flush;
+    wire    WB_ex, ertn_flush, EX_ex, MEM_ex;
 
-// CSR
-wire [79:0] csr_ctrl;
-wire [31:0] csr_rvalue;
-wire [31:0] ex_entry;
-wire [31:0] era_pc;
-wire has_int;
+// Flush
+// [2023.11.30] yzcc: flush the pipelines when: WB_ex, ertn_flush, refetch_flush
+    wire        flush;
 
-csr u_csr(
+//-----------------------------------TLB-----------------------------------
+    wire [18:0]                     s0_vppn;
+    wire                            s0_va_bit12;
+    wire [9:0]                      s0_asid;
+    wire                            s0_found;
+    wire [$clog2(`TLBNUM) - 1:0]    s0_index;
+    wire [19:0]                     s0_ppn;
+    wire [5:0]                      s0_ps;
+    wire [1:0]                      s0_plv;
+    wire [1:0]                      s0_mat;
+    wire                            s0_d;
+    wire                            s0_v;
+
+    // Port 1 (For Load/Store/invtlb)
+    wire [18:0]                     s1_vppn;
+    wire                            s1_va_bit12;
+    wire [9:0]                      s1_asid;
+    wire                            s1_found;
+    wire [$clog2(`TLBNUM)-1:0]      s1_index;
+    wire [19:0]                     s1_ppn;
+    wire [5:0]                      s1_ps;
+    wire [1:0]                      s1_plv;
+    wire [1:0]                      s1_mat;
+    wire                            s1_d;
+    wire                            s1_v;
+    wire                            invtlb_valid;        // INVTLB opcode
+    wire [4:0]                      invtlb_op;
+
+    // Write Port 
+    wire                            we;
+    wire [$clog2(`TLBNUM) - 1:0]    w_index;
+    wire                            w_e;
+    wire [18:0]                     w_vppn;
+    wire [5:0]                      w_ps;
+    wire [9:0]                      w_asid;
+    wire                            w_g;
+    wire [19:0]                     w_ppn0;
+    wire [1:0]                      w_plv0;
+    wire [1:0]                      w_mat0;
+    wire                            w_d0;
+    wire                            w_v0;
+    wire [19:0]                     w_ppn1;
+    wire [1:0]                      w_plv1;
+    wire [1:0]                      w_mat1;
+    wire                            w_d1;
+    wire                            w_v1;
+
+    // Read Port
+    wire [$clog2(`TLBNUM) - 1:0]    r_index;
+    wire                            r_e;
+    wire [18:0]                     r_vppn;
+    wire [5:0]                      r_ps;
+    wire [9:0]                      r_asid;
+    wire                            r_g;
+    wire [19:0]                     r_ppn0;
+    wire [1:0]                      r_plv0;
+    wire [1:0]                      r_mat0;
+    wire                            r_d0;
+    wire                            r_v0;
+    wire [19:0]                     r_ppn1;
+    wire [1:0]                      r_plv1;
+    wire [1:0]                      r_mat1;
+    wire                            r_d1;
+    wire                            r_v1;
+
+    tlb u_tlb(
         .clk(aclk),
-        .reset(reset),
-
-        // inst interface
-        .csr_ctrl(csr_ctrl),
-        .csr_rvalue(csr_rvalue),
-        
-        // Request inst valid
-        .valid(MEMreg_valid),
-
-        // circuit interface
-        .CSR_in_bus(CSR_in_bus),
-        .ex_entry(ex_entry),
-        .era_pc(era_pc),
-        .has_int(has_int)
+        // Fetch
+        .s0_vppn(s0_vppn),      .s0_va_bit12(s0_va_bit12),  .s0_asid(s0_asid),
+        .s0_found(s0_found),    .s0_index(s0_index),        .s0_ppn(s0_ppn),
+        .s0_ps(s0_ps),          .s0_plv(s0_plv),            .s0_mat(s0_mat),
+        .s0_d(s0_d),            .s0_v(s0_v),
+        // Load Store INVTLB
+        .s1_vppn(s1_vppn),      .s1_va_bit12(s1_va_bit12),  .s1_asid(s1_asid),
+        .s1_found(s1_found),    .s1_index(s1_index),        .s1_ppn(s1_ppn),
+        .s1_ps(s1_ps),          .s1_plv(s1_plv),            .s1_mat(s1_mat),
+        .s1_d(s1_d),            .s1_v(s1_v),
+        .invtlb_valid(invtlb_valid),    .invtlb_op(invtlb_op),
+        // Write Port
+        .we(we),                .w_index(w_index),          .w_e(w_e),
+        .w_vppn(w_vppn),        .w_ps(w_ps),                .w_asid(w_asid),
+        .w_g(w_g),              .w_ppn0(w_ppn0),            .w_plv0(w_plv0),
+        .w_mat0(w_mat0),        .w_d0(w_d0),                .w_v0(w_v0),
+        .w_ppn1(w_ppn1),        .w_plv1(w_plv1),            .w_mat1(w_mat1),
+        .w_d1(w_d1),            .w_v1(w_v1),
+        // Read Port
+        .r_index(r_index),      .r_e(r_e),                  .r_vppn(r_vppn),
+        .r_ps(r_ps),            .r_asid(r_asid),            .r_g(r_g),
+        .r_ppn0(r_ppn0),        .r_plv0(r_plv0),            .r_mat0(r_mat0),
+        .r_d0(r_d0),            .r_v0(r_v0),                .r_ppn1(r_ppn1),
+        .r_plv1(r_plv1),        .r_mat1(r_mat1),            .r_d1(r_d1),
+        .r_v1(r_v1)
     );
 
-// AXI convert
+//-----------------------------------CSR-----------------------------------
+    wire [79:0] csr_ctrl;
+    wire [31:0] csr_rvalue;
+    wire [31:0] ex_entry;
+    wire [31:0] era_pc;
+    wire has_int;
+    wire [31:0] csr_crmd, csr_asid, csr_tlbehi;
+    
+    csr u_csr(
+            .clk(aclk),
+            .reset(reset),
+    
+            // inst interface
+            .csr_ctrl(csr_ctrl),
+            .csr_rvalue(csr_rvalue),
+            
+            // Request inst valid
+            .valid(MEMreg_valid),
+    
+            // circuit interface
+            .CSR_in_bus(CSR_in_bus),
+            .ex_entry(ex_entry),
+            .era_pc(era_pc),
+            .has_int(has_int),
+            .csr_asid(csr_asid),
+            .csr_crmd(csr_crmd),
+            .csr_tlbehi(csr_tlbehi),
+
+            // TLB ports
+            .r_index(r_index),          .r_e(r_e),
+            .r_vppn(r_vppn),            .r_ps(r_ps),            .r_asid(r_asid),
+            .r_g(r_g),                  .r_ppn0(r_ppn0),        .r_plv0(r_plv0),
+            .r_mat0(r_mat0),            .r_d0(r_d0),            .r_v0(r_v0),
+            .r_ppn1(r_ppn1),            .r_plv1(r_plv1),        .r_mat1(r_mat1),
+            .r_d1(r_d1),                .r_v1(r_v1),
+            .we(we),                    .w_index(w_index),      .w_e(w_e),
+            .w_vppn(w_vppn),            .w_ps(w_ps),            .w_asid(w_asid),
+            .w_g(w_g),                  .w_ppn0(w_ppn0),        .w_plv0(w_plv0),
+            .w_mat0(w_mat0),            .w_d0(w_d0),            .w_v0(w_v0),
+            .w_ppn1(w_ppn1),            .w_plv1(w_plv1),        .w_mat1(w_mat1),
+            .w_d1(w_d1),                .w_v1(w_v1)
+        );
+    
+
+//-----------------------------------AXI convert-----------------------------------
 wire        inst_sram_req;
 wire        inst_sram_wr;
 wire [1:0]  inst_sram_size;
@@ -270,12 +365,12 @@ AXI_convert AXI_convert(
                 .bready(bready)
             );
 
-// Data Harzard Detect
+//-----------------------------------Data Harzard Detect-----------------------------------
 wire    [31:0]  addr1_forward, addr2_forward;
 wire            pause, addr1_occur, addr2_occur;
 
 data_harzard_detector u_dhd(
-                          .reset(reset || wb_ex || ertn_flush),
+                          .reset(reset | flush),
                           .rf_raddr1(rf_raddr1),
                           .rf_raddr2(rf_raddr2),
                           .EX_bypass_bus(EX_bypass_bus),
@@ -290,15 +385,26 @@ data_harzard_detector u_dhd(
 
 // store when exception occur in EX/MEM/WB
 wire excep_valid;
-wire ex_ex = | EXreg_bus[238:223];
-wire mem_ex = | MEMreg_bus[167:152];
-wire st_disable = ex_ex | mem_ex | wb_ex;
+wire st_disable = EX_ex | MEM_ex | WB_ex;
 
-// Pipeline states
+//-----------------------------------Refetch and TLBSRCH pause-----------------------------------
+// exp18
+wire            to_IF_refetch, from_ID_refetch, from_EX_refetch, from_MEM_refetch, from_WB_refetch;
+wire            refetch_flush;
+wire    [31:0]  refetch_pc;
+wire            to_EX_tlbsrch_pause, from_MEM_tlbsrch_pause, from_WB_tlbsrch_pause;
+
+assign  to_IF_refetch       = (from_ID_refetch | from_EX_refetch | from_MEM_refetch | from_WB_refetch) & ~flush;
+assign  to_EX_tlbsrch_pause = from_MEM_tlbsrch_pause | from_WB_tlbsrch_pause;
+
+// Flush
+assign  flush       = reset | WB_ex | ertn_flush | refetch_flush;
+
+//-----------------------------------Pipeline states-----------------------------------
 
 /***************************************************
     Hint:
-    clean pipeline when wb_ex or ertn_reflush:
+    clean pipeline when WB_ex or ertn_reflush:
     reset stages besides IF stage.
 ****************************************************/
 
@@ -325,16 +431,28 @@ IF  u_IF(
         .BR_BUS(BR_BUS),
 
         .except_valid(excep_valid),
-        .wb_ex(wb_ex),
+        .WB_ex(WB_ex),
         .ex_entry(ex_entry),
         .ertn_flush(ertn_flush),
-        .era_pc(era_pc)
+        .era_pc(era_pc),
+
+        // refetch
+        .refetch(to_IF_refetch),
+        .refetch_flush(refetch_flush),
+        .refetch_pc(refetch_pc),
+
+        // TLB ports
+        .s0_vppn(s0_vppn),      .s0_va_bit12(s0_va_bit12),
+        .s0_asid(s0_asid),      .s0_found(s0_found),        .s0_index(s0_index),
+        .s0_ppn(s0_ppn),        .s0_ps(s0_ps),              .s0_plv(s0_plv),
+        .s0_mat(s0_mat),        .s0_d(s0_d),                .s0_v(s0_v)
     );
 
 // ID
 ID  u_ID(
         .clk(aclk),
-        .reset(reset||wb_ex||ertn_flush),
+        .reset(reset),
+        .flush(flush),
         .timecnt(timecnt),
         .valid(IFreg_valid),
         .IFreg_bus(IFreg),
@@ -352,6 +470,8 @@ ID  u_ID(
         .IDreg_valid(toIDreg_valid_bus),
         .IDreg_bus(IDreg_bus),
 
+        .refetch(from_ID_refetch),
+
         .pause(pause),
         .addr1_forward(addr1_forward),
         .addr1_occur(addr1_occur),
@@ -363,7 +483,8 @@ ID  u_ID(
 // EX
 EX  u_EX(
         .clk(aclk),
-        .reset(reset||wb_ex||ertn_flush),
+        .reset(reset),
+        .flush(flush),
         .valid(IDreg_valid),
         .IDreg_bus(IDreg),
         .ID_ready_go(ID_ready_go),
@@ -389,14 +510,26 @@ EX  u_EX(
         .rdcntv_op(rdcntv_op),
         .counter_value(counter_value),
 
-        .ertn_cancel(MEM_ertn||WB_ertn)
+        .except(EX_ex),
+        .ertn_cancel(MEM_ertn||WB_ertn),
+        .refetch(from_EX_refetch),
+        .tlbsrch_pause(to_EX_tlbsrch_pause),
+        .csr_asid(csr_asid),
+        .csr_tlbehi(csr_tlbehi),
+
+        // TLB ports
+        .s1_vppn(s1_vppn),  .s1_va_bit12(s1_va_bit12),
+        .s1_asid(s1_asid),  .s1_found(s1_found),    .s1_index(s1_index),
+        .s1_ppn(s1_ppn),    .s1_ps(s1_ps),          .s1_plv(s1_plv),
+        .s1_mat(s1_mat),    .s1_d(s1_d),            .s1_v(s1_v),
+        .invtlb_valid(invtlb_valid),                .invtlb_op(invtlb_op)
     );
 
 // MEM
 MEM u_MEM(
         .clk(aclk),
-        .reset_real(reset),
-        .reset(reset||wb_ex||ertn_flush),
+        .reset(reset),
+        .flush(flush),
         .valid(EXreg_valid),
         /***************************************************
             Hint:
@@ -410,6 +543,10 @@ MEM u_MEM(
         .data_sram_addr_ok(data_sram_addr_ok),
         .data_sram_data_ok(data_sram_data_ok),
         .data_sram_rdata(data_sram_rdata),
+        
+        .refetch(from_MEM_refetch),
+        .tlbsrch_pause(from_MEM_tlbsrch_pause),
+
         .EX_ready_go(EX_ready_go),
         .WB_allow_in(WB_allow_in),
         .MEM_allow_in(MEM_allow_in),
@@ -417,13 +554,13 @@ MEM u_MEM(
         .MEM_bypass_bus(MEM_bypass_bus),
         .MEMreg_valid(toMEMreg_valid_bus),
         .MEMreg_bus(MEMreg_bus),
+        .except(MEM_ex),
         .ertn_flush(MEM_ertn)
     );
 
 // WB
 WB  u_WB(
         .clk(aclk),
-        .reset(reset||wb_ex||ertn_flush),
         .valid(MEMreg_valid),
         .MEMreg_bus(MEMreg),
         .rf_wdata(rf_wdata),
@@ -434,6 +571,12 @@ WB  u_WB(
         .debug_wb_rf_we(debug_wb_rf_we),
         .debug_wb_rf_wnum(debug_wb_rf_wnum),
         .debug_wb_rf_wdata(debug_wb_rf_wdata),
+
+        .refetch(from_WB_refetch),
+        .tlbsrch_pause(from_WB_tlbsrch_pause),
+        .refetch_flush(refetch_flush),
+        .refetch_pc(refetch_pc),
+
         .MEM_ready_go(MEM_ready_go),
         .WB_ready_go(WB_ready_go),
         .WB_allow_in(WB_allow_in),
@@ -441,16 +584,16 @@ WB  u_WB(
         .csr_rvalue(csr_rvalue),
         .to_csr_in_bus(CSR_in_bus),
         .ertn_flush(WB_ertn),
+        .except(WB_ex),
         .excep_valid(excep_valid)
     );
-assign wb_ex = CSR_in_bus[79];
 assign ertn_flush = CSR_in_bus[80];
 
 // Pipeline update
 // IFreg
 always @(posedge aclk)
 begin
-    if (reset||wb_ex||ertn_flush)
+    if (reset | flush)
     begin
         IFreg_valid     <= 0;
         IFreg           <= 0;
@@ -475,7 +618,7 @@ end
 // IDreg
 always @(posedge aclk)
 begin
-    if (reset||wb_ex||ertn_flush)
+    if (reset | flush)
     begin
         IDreg_valid     <= 0;
         IDreg           <= 0;
@@ -500,7 +643,7 @@ end
 // EXreg
 always @(posedge aclk)
 begin
-    if (reset||wb_ex||ertn_flush)
+    if (reset | flush)
     begin
         EXreg_valid     <= 0;
         EXreg           <= 0;
@@ -525,7 +668,7 @@ end
 // MEMreg
 always @(posedge aclk)
 begin
-    if (reset||wb_ex||ertn_flush)
+    if (reset | flush)
     begin
         MEMreg_valid    <= 0;
         MEMreg          <= 0;

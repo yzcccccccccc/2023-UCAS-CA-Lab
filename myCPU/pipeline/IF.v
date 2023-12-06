@@ -28,11 +28,29 @@ module IF(
     input  wire [`BR_BUS_LEN - 1:0] BR_BUS,
 
     // exception
-    input wire except_valid,
-    input wire wb_ex,
-    input wire [31:0] ex_entry,
-    input wire ertn_flush,
-    input wire [31:0] era_pc
+    input   wire        except_valid,
+    input   wire        WB_ex,
+    input   wire [31:0] ex_entry,
+    input   wire        ertn_flush,
+    input   wire [31:0] era_pc,
+
+    // refetch
+    input   wire        refetch,
+    input   wire        refetch_flush,
+    input   wire [31:0] refetch_pc,
+
+    // TLB ports (s0_)
+    output  wire [18:0]     s0_vppn,
+    output  wire            s0_va_bit12,
+    output  wire [9:0]      s0_asid,
+    input   wire            s0_found,
+    input   wire [3:0]      s0_index,
+    input   wire [19:0]     s0_ppn,
+    input   wire [5:0]      s0_ps,
+    input   wire [1:0]      s0_plv,
+    input   wire [1:0]      s0_mat,
+    input   wire            s0_d,
+    input   wire            s0_v
 );
 
 // Signal definitions
@@ -62,7 +80,8 @@ module IF(
     wire        ertn_tak;
     wire        ex_tak;
     wire        br_tak;
-    wire [31:0] ertn_pc, ex_pc, br_pc;
+    wire        refetch_flush_tak;
+    wire [31:0] ertn_pc, ex_pc, br_pc, refetch_flush_pc;
 
     wire        to_IF_valid;
 
@@ -99,19 +118,42 @@ module IF(
     assign ebus_end = ebus_init | {{15-`EBUS_ADEF{1'b0}}, IF_has_adef, {`EBUS_ADEF{1'b0}}};
 
 //------------------------------------------------------preIF------------------------------------------------------
+    // preIF_refetch
+    /***********************************************************
+    2023.11.30 yzcc
+        preIF_refetch_tag:
+            mark whether the pc in preIF stage needs refetch
+    ***********************************************************/
+    wire    preIF_refetch_tag;
+    reg     preIF_refetch_tag_r;
+    always @(posedge clk) begin
+        if (reset)
+            preIF_refetch_tag_r <= 0;
+        else begin
+            if (preIF_ready_go && IF_allow_in)
+                preIF_refetch_tag_r <= 0;
+            else
+                if (refetch)
+                    preIF_refetch_tag_r <= 1;
+        end
+    end
+    assign  preIF_refetch_tag   = preIF_refetch_tag_r | refetch;
+
     // preIF_ready_go
     /***********************************************************
     2023.11.10 yzcc
         About preIF_ready_go:
         1. successfully shake hands
         2. ADEF
-    ************************************************************/
-    /***********************************************************
+
     2023.11.12 czxx
         It's ok when preIF_cancel, the inst that will go to next
     stage would be invalidated.
+
+    2023.11.30 yzcc
+        also allow to go when preIF is tagged with 'refetch'
     ************************************************************/
-    assign preIF_ready_go = (inst_sram_req & inst_sram_addr_ok) | preIF_has_adef;
+    assign preIF_ready_go = (inst_sram_req & inst_sram_addr_ok) | preIF_has_adef | preIF_refetch_tag;
 
     // to_IF_valid
     /***********************************************************
@@ -119,7 +161,7 @@ module IF(
         to_IF_valid should be invalidated if addr request happen
     to be accepted when we need to cancel preIF 
     ************************************************************/
-    assign preIF_cancel = (ertn_flush & except_valid | wb_ex & except_valid | br_taken);
+    assign preIF_cancel = (ertn_flush & except_valid | WB_ex & except_valid | br_taken | refetch_flush);
     assign to_IF_valid  = preIF_ready_go & ~preIF_cancel;
 
     // Retaining cancel situation
@@ -128,9 +170,13 @@ module IF(
         These regs are used for storing PCs when facing cancel
     situation. The reason of using regs is that these signals
     can only exist for 1 clock.
+
+    2023.11.30 yzcc
+        Also regard refetch_flush as a cancel situalion.
+        (refetch_flush: pc in WB stage tagged with 'refetch')
     ***********************************************************/
-    reg             ertn_taken_r, ex_taken_r, br_taken_r;
-    reg [31:0]      ertn_pc_r, ex_pc_r, br_pc_r;
+    reg             ertn_taken_r, ex_taken_r, br_taken_r, refetch_flush_r;
+    reg [31:0]      ertn_pc_r, ex_pc_r, br_pc_r, refetch_pc_r;
     always @(posedge clk) begin
         /******************************************************
         2023.11.12 czxx
@@ -143,29 +189,36 @@ module IF(
             {ertn_taken_r, ertn_pc_r}           <= 0;
             {ex_taken_r, ex_pc_r}               <= 0;
             {br_taken_r, br_pc_r}               <= 0;
+            {refetch_flush_r, refetch_pc_r}     <= 0;
         end
         else begin
             if (ertn_flush & except_valid)
-                {ertn_taken_r, ertn_pc_r}   <= {1'b1, era_pc};
-            if (wb_ex & except_valid)
-                {ex_taken_r, ex_pc_r}       <= {1'b1, ex_entry};
+                {ertn_taken_r, ertn_pc_r}       <= {1'b1, era_pc};
+            if (WB_ex & except_valid)
+                {ex_taken_r, ex_pc_r}           <= {1'b1, ex_entry};
             if (br_taken)
-                {br_taken_r, br_pc_r}       <= {1'b1, br_target};
+                {br_taken_r, br_pc_r}           <= {1'b1, br_target};
+            if (refetch_flush)
+                {refetch_flush_r, refetch_pc_r} <= {1'b1, refetch_pc};
         end
     end
-    assign  ertn_tak        = ertn_flush & except_valid | ertn_taken_r;
-    assign  ertn_pc         = {32{ertn_flush & except_valid}} & era_pc
-                            | {32{ertn_taken_r}} & ertn_pc_r;
-    assign  ex_tak          = wb_ex & except_valid | ex_taken_r;
-    assign  ex_pc           = {32{wb_ex & except_valid}} & ex_entry
-                            | {32{ex_taken_r}} & ex_pc_r;
-    assign  br_tak          = br_taken | br_taken_r;
-    assign  br_pc           = {32{br_taken}} & br_target
-                            | {32{br_taken_r}} & br_pc_r;
+    assign  ertn_tak            = ertn_flush & except_valid | ertn_taken_r;
+    assign  ertn_pc             = {32{ertn_flush & except_valid}} & era_pc
+                                | {32{ertn_taken_r}} & ertn_pc_r;
+    assign  ex_tak              = WB_ex & except_valid | ex_taken_r;
+    assign  ex_pc               = {32{WB_ex & except_valid}} & ex_entry
+                                | {32{ex_taken_r}} & ex_pc_r;
+    assign  br_tak              = br_taken | br_taken_r;
+    assign  br_pc               = {32{br_taken}} & br_target
+                                | {32{br_taken_r}} & br_pc_r;
+    assign  refetch_flush_tak   = refetch_flush | refetch_flush_r;
+    assign  refetch_flush_pc    = {32{refetch_flush}} & refetch_pc
+                                | {32{refetch_flush_r}} & refetch_pc_r;
 
     // pc_next
-    assign pc_seq           = pc + 32'h4;
-    assign  pc_next         = ex_tak ? ex_pc
+    assign  pc_seq          = pc + 32'h4;
+    assign  pc_next         = refetch_flush_tak ? refetch_flush_pc
+                            : ex_tak ? ex_pc
                             : ertn_tak ? ertn_pc
                             : br_tak ? br_pc
                             : pc_seq;
@@ -176,8 +229,11 @@ module IF(
         About inst_sram_req:
         1. only pull up when IF is ready to accept (IF_allow_in).
         2. ADEF will not pull up a request.
+
+    2023.11.30 yzcc
+        3. pc tagged 'refetch' will not pull up a request
     **************************************************************/
-    assign inst_sram_req            = ~reset & ~br_stall & IF_allow_in & ~preIF_has_adef;
+    assign inst_sram_req            = ~reset & ~br_stall & IF_allow_in & ~preIF_has_adef & ~preIF_refetch_tag;
     assign inst_sram_addr           = pc_next;
     assign inst_sram_wr             = 0;
     assign inst_sram_wstrb          = 0;
@@ -185,17 +241,50 @@ module IF(
     assign inst_sram_size           = 2'b10;            // 2 means 2^2 = 4 bytes.
 
 //------------------------------------------------------IF------------------------------------------------------
+    // IF_refetch_tag
+    /***********************************************************
+    2023.11.30 yzcc
+        IF_refetch_tag:
+            Mark whether the pc in IF stage requires refetch.
+
+        1) update from preIF
+        2) update from top signal 'refetch'
+    ***********************************************************/
+    wire    IF_refetch_tag;
+    reg     IF_refetch_tag_r;
+    always @(posedge clk) begin
+        if (reset)
+            IF_refetch_tag_r    <= 0;
+        else
+            if (preIF_ready_go && IF_allow_in)
+                IF_refetch_tag_r    <= preIF_refetch_tag;
+            else
+                if (refetch)
+                    IF_refetch_tag_r    <= 1;
+    end
+    assign  IF_refetch_tag  = IF_refetch_tag_r | refetch;
+    
     /*****************************************************************
     2023.11.12 czxx
         About IF_ready_go:
         1. Have acquired the data (data_ok or IF_buf_valid).
         2. ADEF
+    
+    2023.11.30 yzcc
+        About IF_ready_go:
+        3. haven't shaked hands and tagged with 'refetch' tag
+
+        About IF_allow_in:
+        allow in if '~IFreg_valid & ~IF_refetch_tag'
+        (because refetch will invalidate the pc in IF, but
+        it's possible that the pc has shaked hands for addr.)
     *****************************************************************/
     assign IF_ready_go      = recv_inst_from_sram & inst_sram_data_ok
                             | recv_inst_from_buf & IF_buf_valid
-                            | IF_has_adef;
-    assign IF_allow_in      = ~IFreg_valid | ID_allow_in & IF_ready_go;
-    assign IFreg_valid      = IF_valid & ~IF_cancel_tak;
+                            | IF_has_adef
+                            | (unfinish_cnt == 0 && IF_refetch_tag);
+    assign IF_allow_in      = ~IFreg_valid & ~IF_refetch_tag | ID_allow_in & IF_ready_go;
+    assign IFreg_valid      = IF_valid & ~IF_cancel_tak & ~IF_refetch_tag;
 
     // IF_valid
     // Old
@@ -224,13 +313,12 @@ module IF(
     2023.11.10 yzcc
         IF_cancel may only last for 1 clk, so we need to use a reg to
     record it. (IF_cancel_r)
-    *****************************************************************/
-    /*****************************************************************
+
     2023.11.12 czxx
         When to reset?
         a new inst has entered this stage
     *****************************************************************/
-    assign IF_cancel    = (ertn_flush & except_valid | wb_ex & except_valid | br_taken);
+    assign IF_cancel    = (ertn_flush & except_valid | WB_ex & except_valid | br_taken | refetch_flush);
     always @(posedge clk) begin
         if (reset)
             IF_cancel_r  <= 0;
@@ -315,6 +403,6 @@ module IF(
                     : inst_sram_rdata;
 
 // to IFreg_bus
-    assign IFreg_bus        = {ebus_end, inst, pc};
+    assign IFreg_bus        = {ebus_end, inst, pc, IF_refetch_tag};
 
 endmodule
