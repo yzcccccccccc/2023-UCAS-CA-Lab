@@ -239,8 +239,9 @@ genvar  i;
             tlb_d1[w_index]     <= w_d1;
             tlb_v1[w_index]     <= w_v1;
         end
-        if (invtlb_valid)
-            tlb_e               <= tlb_e & ~mask;
+        else
+            if (invtlb_valid)
+                tlb_e               <= tlb_e & ~mask;
     end
 
 endmodule
