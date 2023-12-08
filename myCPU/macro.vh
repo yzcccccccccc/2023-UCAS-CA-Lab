@@ -8,14 +8,14 @@
 `define ID_TLB_LEN      15      /* IDTLB    = {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, invtlb_valid, invtlb_op, refetch_detect, tlbsrch_pause_detect, refetch_tag}*/
 `define IDReg_BUS_LEN   274     /* = {ID2EX, ID2MEM, ID2WB, ID_TLB} */
 
-`define EX2MEM_LEN      119     /* EX2MEM   = {wait_data_ok, ebus_end, mul, mul_result, EX_result, rdk_value, ld_ctrl}*/
+`define EX2MEM_LEN      118     /* EX2MEM   = {ebus_end, mul, mul_result, EX_result, rdk_value, ld_ctrl}*/
 `define EX2WB_LEN       122
-`define EX_TLB_LEN      12      /* EXTLB    = {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, refetch_detect, tlbsrch_pause_detect, refetch_tag} */
-`define EXReg_BUS_LEN   253     /* = {EXreg_2MEM, EXreg_2WB, EXTLB}; */
+`define EX_TLB_LEN      44      /* EXTLB    = {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, refetch_detect, tlbsrch_pause_detect, refetch_tag, badv} */
+`define EXReg_BUS_LEN   284     /* = {EXreg_2MEM, EXreg_2WB, EXTLB}; */
 
-`define MEM_TLB_LEN     12      /* MEMTLB   = {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, refetch_detect, tlbsrch_pause_detect, refetch_tag}*/
+`define MEM_TLB_LEN     44      /* MEMTLB   = {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, refetch_detect, tlbsrch_pause_detect, refetch_tag, badv}*/
 `define MEM2WB_LEN      169     /* MEM2WB   = {pause_int_detect, ebus_end, ertn_flush, csr_ctrl, res_from_csr, MEM_final_result, rf_we, rf_waddr, pc}*/
-`define MEMReg_BUS_LEN  181     /* = {MEM2wb, MEMTLB} */
+`define MEMReg_BUS_LEN  213     /* = {MEM2wb, MEMTLB} */
 
 // Data Forward Bypass
 `define EX_BYPASS_LEN   42
@@ -86,6 +86,7 @@
 `define CSR_ASID_ASID       9:0
 `define CSR_ASID_ASIDBITS   23:16
 `define CSR_PGDH_BASE       31:12               // GRLEN - 1:12
+`define CSR_PGDL_BASE       31:12
 `define CSR_PGD_BASE        31:12               // GRLEN - 1:12
 `define CSR_TLBRENTRY_PA    31:6
 `define CSR_DMW_PLV0        0

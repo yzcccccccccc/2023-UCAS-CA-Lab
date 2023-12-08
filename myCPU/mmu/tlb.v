@@ -135,10 +135,12 @@ genvar  i;
         for (i = 0; i < TLBNUM; i = i + 1) begin : Look_up_wire_gen
             assign match0[i]    = (s0_vppn[18:9] == tlb_vppn[i][18:9])
                                 && (tlb_ps4MB[i] || s0_vppn[8:0] == tlb_vppn[i][8:0])           // 4MB only has to check the high 10 bits
-                                && (tlb_g[i] || s0_asid == tlb_asid[i]);
+                                && (tlb_g[i] || s0_asid == tlb_asid[i])
+                                && tlb_e[i];
             assign match1[i]    = (s1_vppn[18:9] == tlb_vppn[i][18:9])
                                 && (tlb_ps4MB[i] || s1_vppn[8:0] == tlb_vppn[i][8:0])
-                                && (tlb_g[i] || s1_asid == tlb_asid[i]);
+                                && (tlb_g[i] || s1_asid == tlb_asid[i])
+                                && tlb_e[i];
         end
     endgenerate
 
@@ -237,8 +239,9 @@ genvar  i;
             tlb_d1[w_index]     <= w_d1;
             tlb_v1[w_index]     <= w_v1;
         end
-        if (invtlb_valid)
-            tlb_e               <= tlb_e & ~mask;
+        else
+            if (invtlb_valid)
+                tlb_e               <= tlb_e & ~mask;
     end
 
 endmodule

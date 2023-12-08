@@ -63,10 +63,11 @@ wire            rf_we_tmp;
 wire            pause_int_detect;
 assign  {pause_int_detect, ebus_init, ertn_flush, csr_ctrl, res_from_csr, final_result, rf_we_tmp, rf_waddr_tmp, pc} = MEM2WB_bus;
 
+wire    [31:0]  badv;
 wire            tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit;
 wire    [3:0]   tlbsrch_index;
 wire            refetch_detect, tlbsrch_pause_detect, refetch_tag;
-assign  {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, refetch_detect, tlbsrch_pause_detect, refetch_tag}  = MEM_TLB_bus;
+assign  {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_index, refetch_detect, tlbsrch_pause_detect, refetch_tag, badv}   = MEM_TLB_bus;
 
 // Reg File
 assign  rf_waddr    = rf_waddr_tmp;
@@ -83,9 +84,9 @@ assign debug_wb_rf_we       = {4{rf_we}};
 assign ebus_end     = ebus_init;
 assign excep_valid  = valid | ebus_end[`EBUS_ADEF];
 
-// exp13 adef
+// EXP13 adef & EXP19 TLB excpetions
 wire [31:0] wb_vaddr;
-assign wb_vaddr = final_result;
+assign wb_vaddr = badv;
 
 // data harzard bypass
 assign WB_bypass_bus    = {pause_int_detect & valid, res_from_csr, rf_waddr, rf_we, rf_wdata};

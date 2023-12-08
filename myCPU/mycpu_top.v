@@ -243,7 +243,7 @@ regfile u_regfile(
     wire [31:0] ex_entry;
     wire [31:0] era_pc;
     wire has_int;
-    wire [31:0] csr_crmd, csr_asid, csr_tlbehi;
+    wire [31:0] csr_crmd, csr_asid, csr_tlbehi, csr_dmw0, csr_dmw1;
     
     csr u_csr(
             .clk(aclk),
@@ -264,6 +264,8 @@ regfile u_regfile(
             .csr_asid(csr_asid),
             .csr_crmd(csr_crmd),
             .csr_tlbehi(csr_tlbehi),
+            .csr_dmw0(csr_dmw0),
+            .csr_dmw1(csr_dmw1),
 
             // TLB ports
             .r_index(r_index),          .r_e(r_e),
@@ -385,7 +387,7 @@ data_harzard_detector u_dhd(
 
 // store when exception occur in EX/MEM/WB
 wire excep_valid;
-wire st_disable = EX_ex | MEM_ex | WB_ex;
+wire st_disable = MEM_ex | WB_ex;
 
 //-----------------------------------Refetch and TLBSRCH pause-----------------------------------
 // exp18
@@ -435,6 +437,12 @@ IF  u_IF(
         .ex_entry(ex_entry),
         .ertn_flush(ertn_flush),
         .era_pc(era_pc),
+
+        // CSR valud
+        .csr_asid(csr_asid),
+        .csr_crmd(csr_crmd),
+        .csr_dmw0(csr_dmw0),
+        .csr_dmw1(csr_dmw1),
 
         // refetch
         .refetch(to_IF_refetch),
@@ -516,6 +524,9 @@ EX  u_EX(
         .tlbsrch_pause(to_EX_tlbsrch_pause),
         .csr_asid(csr_asid),
         .csr_tlbehi(csr_tlbehi),
+        .csr_crmd(csr_crmd),
+        .csr_dmw0(csr_dmw0),
+        .csr_dmw1(csr_dmw1),
 
         // TLB ports
         .s1_vppn(s1_vppn),  .s1_va_bit12(s1_va_bit12),
@@ -531,14 +542,19 @@ MEM u_MEM(
         .reset(reset),
         .flush(flush),
         .valid(EXreg_valid),
-        /***************************************************
+        /*********************************************************
             Hint:
-            EXreg_bus[`EXReg_BUS_LEN-19:`EXReg_BUS_LEN-50] is
+            EXreg_bus[`EXReg_BUS_LEN-18:`EXReg_BUS_LEN-49] is
             the result of multiplier.
             directly from EX stage.
             Kinda like mul for 2 clks.
-        ****************************************************/
-        .EXreg_bus({EXreg[`EXReg_BUS_LEN-1:`EXReg_BUS_LEN-18],EXreg_bus[`EXReg_BUS_LEN-19:`EXReg_BUS_LEN-50],EXreg[`EXReg_BUS_LEN-51:0]}),
+        
+        2023.12.1 yzcc:
+            This segment of code is just a piece of shit. Cutting 
+        EXreg into several slices is bullshit. Too inconvenient.
+        Need to fix in the future version.
+        *********************************************************/
+        .EXreg_bus({EXreg[`EXReg_BUS_LEN-1:`EXReg_BUS_LEN-17],EXreg_bus[`EXReg_BUS_LEN-18:`EXReg_BUS_LEN-49],EXreg[`EXReg_BUS_LEN-50:0]}),
         .data_sram_req(data_sram_req),
         .data_sram_addr_ok(data_sram_addr_ok),
         .data_sram_data_ok(data_sram_data_ok),

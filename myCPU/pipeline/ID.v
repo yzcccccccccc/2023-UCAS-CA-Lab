@@ -461,8 +461,12 @@ to refetch')
        Also, when MEM and WB stages have the instructions, we need 
 to inform EX stage about the 'need to refetch'.
        TLBWR, TLBFILL, TLBRD, INVTLB also the same.
+
+[2023.12.2] yzcc:
+       Fuck. It seems that CRMD.PLV will also influence the
+address translation.
 ****************************************************************/
-assign refetch_detect       = csr_we & (csr_num == `CSR_CRMD & (csr_wmask[`CSR_CRMD_DA] | csr_wmask[`CSR_CRMD_PG])
+assign refetch_detect       = csr_we & (csr_num == `CSR_CRMD & (csr_wmask[`CSR_CRMD_DA] | csr_wmask[`CSR_CRMD_PG] | csr_wmask[`CSR_CRMD_PLV])
                                    | csr_num == `CSR_DMW0
                                    | csr_num == `CSR_DMW1
                                    | csr_num == `CSR_ASID)
