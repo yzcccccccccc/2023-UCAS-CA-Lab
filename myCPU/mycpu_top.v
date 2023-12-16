@@ -142,6 +142,7 @@ regfile u_regfile(
 // Flush
 // [2023.11.30] yzcc: flush the pipelines when: WB_ex, ertn_flush, refetch_flush
     wire        flush;
+    wire        refetch_flush;
 
 //-----------------------------------TLB-----------------------------------
     wire [18:0]                     s0_vppn;
@@ -254,7 +255,7 @@ regfile u_regfile(
             .csr_rvalue(csr_rvalue),
             
             // Request inst valid
-            .valid(MEMreg_valid),
+            .valid(MEMreg_valid & ~refetch_flush),
     
             // circuit interface
             .CSR_in_bus(CSR_in_bus),
@@ -284,16 +285,13 @@ regfile u_regfile(
     
 
 //-----------------------------------AXI convert-----------------------------------
-wire        inst_sram_req;
-wire        inst_sram_wr;
-wire [1:0]  inst_sram_size;
-wire [31:0] inst_sram_addr;
-wire [3:0]  inst_sram_wstrb;
-wire [31:0] inst_sram_wdata;
-wire        preIF_cancel;
-wire        inst_sram_addr_ok;
-wire        inst_sram_data_ok;
-wire [31:0] inst_sram_rdata;
+wire        icache_rd_req;
+wire [2:0]  icache_rd_type;
+wire [31:0] icache_rd_addr;
+wire        icache_rd_rdy;
+wire        icache_ret_valid;
+wire        icache_ret_last;
+wire [31:0] icache_ret_data;
 
 wire        data_sram_req;
 wire        data_sram_wr;
@@ -304,16 +302,16 @@ wire [31:0] data_sram_wdata;
 wire        data_sram_addr_ok;
 wire        data_sram_data_ok;
 wire [31:0] data_sram_rdata;
+
 AXI_convert AXI_convert(
-                .inst_sram_req(inst_sram_req),
-                .inst_sram_wr(inst_sram_wr),
-                .inst_sram_size(inst_sram_size),
-                .inst_sram_addr(inst_sram_addr),
-                .inst_sram_wstrb(inst_sram_wstrb),
-                .inst_sram_wdata(inst_sram_wdata),
-                .inst_sram_addr_ok(inst_sram_addr_ok),
-                .inst_sram_data_ok(inst_sram_data_ok),
-                .inst_sram_rdata(inst_sram_rdata),
+                .icache_rd_req(icache_rd_req),
+                .icache_rd_type(icache_rd_type),
+                .icache_rd_addr(icache_rd_addr),
+                .icache_rd_rdy(icache_rd_rdy),
+                .icache_ret_valid(icache_ret_valid),
+                .icache_ret_last(icache_ret_last),
+                .icache_ret_data(icache_ret_data),
+
                 .data_sram_req(data_sram_req),
                 .data_sram_wr(data_sram_wr),
                 .data_sram_size(data_sram_size),
@@ -340,6 +338,7 @@ AXI_convert AXI_convert(
 
                 .rid(rid),
                 .rdata(rdata),
+                .rlast(rlast),
                 .rvalid(rvalid),
                 .rready(rready),
 
@@ -367,6 +366,40 @@ AXI_convert AXI_convert(
                 .bready(bready)
             );
 
+//-----------------------------------ICache------------------------------------------------
+wire        icache_valid;
+wire [7:0]  icache_index;
+wire [19:0] icache_tag;
+wire [3:0]  icache_offset;
+wire        icache_addrok;
+wire        icache_dataok;
+wire [31:0] icache_rdata;
+cache icache(
+           .clk(aclk),
+           .resetn(aresetn),
+
+           .valid(icache_valid),
+           .op(1'b0), // read
+           .index(icache_index),
+           .tag(icache_tag),
+           .offset(icache_offset),
+           .wstrb(4'b0),
+           .wdata(32'b0),
+           .addr_ok(icache_addrok),
+           .data_ok(icache_dataok),
+           .rdata(icache_rdata),
+
+           .rd_req(icache_rd_req),
+           .rd_type(icache_rd_type),
+           .rd_addr(icache_rd_addr),
+           .rd_rdy(icache_rd_rdy),
+           .ret_valid(icache_ret_valid),
+           .ret_last(icache_ret_last),
+           .ret_data(icache_ret_data),
+
+           .wr_rdy(1'b1)
+       );
+
 //-----------------------------------Data Harzard Detect-----------------------------------
 wire    [31:0]  addr1_forward, addr2_forward;
 wire            pause, addr1_occur, addr2_occur;
@@ -392,7 +425,6 @@ wire st_disable = MEM_ex | WB_ex;
 //-----------------------------------Refetch and TLBSRCH pause-----------------------------------
 // exp18
 wire            to_IF_refetch, from_ID_refetch, from_EX_refetch, from_MEM_refetch, from_WB_refetch;
-wire            refetch_flush;
 wire    [31:0]  refetch_pc;
 wire            to_EX_tlbsrch_pause, from_MEM_tlbsrch_pause, from_WB_tlbsrch_pause;
 
@@ -414,16 +446,14 @@ assign  flush       = reset | WB_ex | ertn_flush | refetch_flush;
 IF  u_IF(
         .clk(aclk),
         .reset(reset),
-        .inst_sram_req(inst_sram_req),
-        .inst_sram_wr(inst_sram_wr),
-        .inst_sram_size(inst_sram_size),
-        .inst_sram_addr(inst_sram_addr),
-        .inst_sram_wstrb(inst_sram_wstrb),
-        .inst_sram_wdata(inst_sram_wdata),
-        .preIF_cancel(preIF_cancel),
-        .inst_sram_addr_ok(inst_sram_addr_ok),
-        .inst_sram_data_ok(inst_sram_data_ok),
-        .inst_sram_rdata(inst_sram_rdata),
+        
+        .icache_valid(icache_valid),
+        .icache_index(icache_index),
+        .icache_tag(icache_tag),
+        .icache_offset(icache_offset),
+        .icache_addrok(icache_addrok),
+        .icache_dataok(icache_dataok),
+        .icache_rdata(icache_rdata),
 
         .IF_ready_go(IF_ready_go),
         .ID_allow_in(ID_allow_in),

@@ -433,12 +433,12 @@ assign era_pc = csr_era_pc;
                                     | ~csr_wmask[`CSR_TLBIDX_NE] & csr_tlbidx_ne;
             end
             else begin
-                if (tlbsrch_req) begin
+                if (tlbsrch_req & valid) begin
                     csr_tlbidx_ne       <= ~tlbsrch_hit;
                     csr_tlbidx_index    <= tlbsrch_hit ? tlbsrch_index : csr_tlbidx_index;
                 end
                 else begin
-                    if (tlbrd_req) begin
+                    if (tlbrd_req & valid) begin
                         csr_tlbidx_ne       <= ~r_e;
                         csr_tlbidx_index    <= r_e ? r_index : csr_tlbidx_index;
                         csr_tlbidx_ps       <= r_e ? r_ps : 0;
@@ -464,7 +464,7 @@ assign era_pc = csr_era_pc;
                 if (wb_ex && page_excep)
                     csr_tlbehi_vppn     <= wb_vaddr[31:13];
                 else
-                    if (tlbrd_req)
+                    if (tlbrd_req & valid)
                         csr_tlbehi_vppn <= r_e ? r_vppn : 0;
         end
     end
@@ -495,7 +495,7 @@ assign era_pc = csr_era_pc;
                                 | ~csr_wmask[`CSR_TLBELO_PPN] & csr_tlbelo0_ppn;
             end
             else begin
-                if (tlbrd_req) begin
+                if (tlbrd_req & valid) begin
                     csr_tlbelo0_d   <= r_e ? r_d0 : 0;
                     csr_tlbelo0_g   <= r_e ? r_g : 0;
                     csr_tlbelo0_v   <= r_e ? r_v0 : 0;
@@ -532,7 +532,7 @@ assign era_pc = csr_era_pc;
                                 | ~csr_wmask[`CSR_TLBELO_PPN] & csr_tlbelo1_ppn;
             end
             else begin
-                if (tlbrd_req) begin
+                if (tlbrd_req & valid) begin
                     csr_tlbelo1_d   <= r_e ? r_d1 : 0;
                     csr_tlbelo1_g   <= r_e ? r_g : 0;
                     csr_tlbelo1_v   <= r_e ? r_v1 : 0;
@@ -555,7 +555,7 @@ assign era_pc = csr_era_pc;
                 csr_asid_asid   <= csr_wmask[`CSR_ASID_ASID] & csr_wvalue[`CSR_ASID_ASID]
                                 | ~csr_wmask[`CSR_ASID_ASID] & csr_asid_asid;
             else
-                if (tlbrd_req)
+                if (tlbrd_req & valid)
                     csr_asid_asid   <= r_e ? r_asid : 0;
         end
     end

@@ -3,18 +3,21 @@
 *************************************************************/
 
 module AXI_convert(
-    //SRAM Signals
-    input  wire        inst_sram_req,
-    input  wire        inst_sram_wr,
-    input  wire [1:0]  inst_sram_size,
-    input  wire [31:0] inst_sram_addr,
-    input  wire [3:0]  inst_sram_wstrb,
-    input  wire [31:0] inst_sram_wdata,
-    output wire        inst_sram_addr_ok,
-    output wire        inst_sram_data_ok,
-    output wire [31:0] inst_sram_rdata,
+    // ICache interface
+    input  wire         icache_rd_req,
+    input  wire [  2:0] icache_rd_type,
+    input  wire [ 31:0] icache_rd_addr,
+    output wire         icache_rd_rdy,
+    output wire         icache_ret_valid,
+    output wire         icache_ret_last,
+    output wire [ 31:0] icache_ret_data,
 
     // data sram interface (SRAM, exp14+)
+    /***************************************************
+    Hint:
+    remember to modify these ports when integrating
+    DCache.
+    ****************************************************/
     input  wire        data_sram_req,
     input  wire        data_sram_wr,
     input  wire [1:0]  data_sram_size,
@@ -76,6 +79,24 @@ module AXI_convert(
     input  wire        bvalid,
     output wire        bready
 );
+    reg rlast_reg;
+    // Original data sram interface convert
+    wire inst_sram_req = icache_rd_req;
+    wire inst_sram_wr = 1'b0;
+    wire [1:0] inst_sram_size = 2'b10;
+    wire [31:0] inst_sram_addr = icache_rd_addr;
+    wire [3:0] inst_sram_wstrb = 4'b0;
+    wire [31:0] inst_sram_wdata = 32'b0;
+    wire inst_sram_addr_ok;
+    wire inst_sram_data_ok;
+    wire [31:0] inst_sram_rdata;
+    assign icache_rd_rdy = inst_sram_addr_ok;
+    assign icache_ret_valid = inst_sram_data_ok;
+    assign icache_ret_last = rlast_reg;
+    assign icache_ret_data = inst_sram_rdata;
+
+
+
     wire read_harzard;
     reg [63:0] rdata_buff;
     reg [1:0] read_data_ok;
@@ -141,9 +162,9 @@ module AXI_convert(
             end
             RWAIT:
             begin
-                if(arvalid && arready && rready && rvalid)
+                if(arvalid && arready && rready && rvalid && rlast)
                     r_next_state <= RWAIT;
-                else if(rready && rvalid)begin
+                else if(rready && rvalid && rlast)begin
                     if(unfinish_cnt == 8'b1)
                         r_next_state <= RDATA;
                     else
@@ -261,11 +282,11 @@ module AXI_convert(
     always@(posedge aclk)begin
         if(reset)
             unfinish_cnt <= 8'b0;
-        else if(arready && arvalid && rvalid && rready)
+        else if(arready && arvalid && rvalid && rready && rlast)
             unfinish_cnt <= unfinish_cnt;
         else if(arvalid && arready)
             unfinish_cnt <= unfinish_cnt + 8'b1;
-        else if(rready && rvalid)
+        else if(rready && rvalid && rlast)
             unfinish_cnt <= unfinish_cnt - 8'b1;
         else
             unfinish_cnt <= unfinish_cnt;
@@ -273,16 +294,17 @@ module AXI_convert(
     end
     // [hint]需要保证valid拉高且ready还未拉高时同通道的值不变
     reg [31:0] araddr_pre;
+    reg [8:0] arlen_pre;
     reg [2:0]  arsize_pre;
     reg [3:0]  arid_pre;
     always@(posedge aclk)begin
         if ((ar_current_state == ARINIT && ar_next_state == ARWAIT)) begin
             araddr_pre  <= araddr;
+            arlen_pre <= (data_sram_req && !data_sram_wr) ? 8'b0 : 8'b11; // 8'b11 for ICache burst transmit
             arid_pre    <= arid;
             arsize_pre  <= arsize;
         end
     end
-    assign arlen    = 8'b0;
     assign arburst  = 2'b01;
     assign arlock   = 2'b0;
     assign arcache  = 4'b0;
@@ -290,6 +312,9 @@ module AXI_convert(
     assign arvalid  = ar_current_state[1];
     wire ar_ready;
     assign ar_ready = ar_current_state[0];
+    assign arlen    = ar_ready ? 
+                      (data_sram_req && !data_sram_wr ? 8'b0 : 8'b11) :
+                      arlen_pre;
     assign arid     = ar_ready ? 
                       (data_sram_req && !data_sram_wr ? 4'b1 : 4'b0) : 
                       arid_pre;
@@ -314,6 +339,9 @@ module AXI_convert(
     end
     always@(posedge aclk)begin
         read_data_ok <= {rid[0] && rready && rvalid, !rid[0] && rready && rvalid};
+    end
+    always@(posedge aclk)begin
+        rlast_reg <= rlast;
     end
 
     reg [31:0] awaddr_pre;
@@ -346,7 +374,7 @@ module AXI_convert(
 
     assign bready   = !reset && w_current_state[4];
     
-    assign inst_sram_addr_ok = !arid[0] && (ar_current_state == ARINIT && ar_next_state == ARWAIT);
+    assign inst_sram_addr_ok = !arid[0] && ar_current_state == ARINIT; // actually icache_rd_rdy;
     assign inst_sram_data_ok = read_data_ok[0];             // 由于rdata_buff的存在，需要慢1拍给出data_ok信号，再加上取数据相关阻塞，总共最大可能慢两拍
     assign inst_sram_rdata   = rdata_buff[31:0];
     assign data_sram_addr_ok = arid[0] && (ar_current_state == ARINIT && ar_next_state == ARWAIT) || 

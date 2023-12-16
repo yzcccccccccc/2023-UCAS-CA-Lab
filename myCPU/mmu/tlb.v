@@ -157,7 +157,7 @@ genvar  i;
                     | {4{match1[8]}} & 4'd8     | {4{match1[9]}} & 4'd9     | {4{match1[10]}} & 4'd10   | {4{match1[11]}} & 4'd11
                     | {4{match1[12]}} & 4'd12   | {4{match1[13]}} & 4'd13   | {4{match1[14]}} & 4'd14   | {4{match1[15]}} & 4'd15;
 
-    wire    s0_page_dec_bit, s1_page_dec_bit;              // 0 for even page, 1 for odd page
+    wire   s0_page_dec_bit, s1_page_dec_bit;              // 0 for even page, 1 for odd page
     assign s0_page_dec_bit  = tlb_ps4MB[s0_index] ? s0_vppn[8] : s0_va_bit12;               // 4KB and 4MB are different at the position of the bit
     assign s1_page_dec_bit  = tlb_ps4MB[s1_index] ? s1_vppn[8] : s1_va_bit12;
 

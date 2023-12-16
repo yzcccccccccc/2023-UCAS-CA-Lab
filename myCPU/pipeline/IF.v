@@ -4,17 +4,14 @@ module IF(
     input  wire        clk,
     input  wire        reset,
 
-    // inst sram interface
-    output  wire        inst_sram_req,
-    output  wire        inst_sram_wr,
-    output  wire [1:0]  inst_sram_size,
-    output  wire [31:0] inst_sram_addr,
-    output  wire [3:0]  inst_sram_wstrb,
-    output  wire [31:0] inst_sram_wdata,
-    output  wire        preIF_cancel,
-    input   wire        inst_sram_addr_ok,
-    input   wire        inst_sram_data_ok,
-    input   wire [31:0] inst_sram_rdata,
+    // ICache interface
+    output  wire        icache_valid,
+    output  wire [7:0]  icache_index,
+    output  wire [19:0] icache_tag,
+    output  wire [3:0]  icache_offset,
+    input   wire        icache_addrok,
+    input   wire        icache_dataok,
+    input   wire [31:0] icache_rdata,
 
     // control signals
     output wire         IF_ready_go,
@@ -58,6 +55,24 @@ module IF(
     input   wire            s0_d,
     input   wire            s0_v
 );
+    wire    [31:0]  pa;
+// Original data sram interface convert
+    wire        inst_sram_req;
+    wire        inst_sram_wr;
+    wire [1:0]  inst_sram_size;
+    wire [31:0] inst_sram_addr;
+    wire [3:0]  inst_sram_wstrb;
+    wire [31:0] inst_sram_wdata;
+    wire        inst_sram_addr_ok;
+    wire        inst_sram_data_ok;
+    wire [31:0] inst_sram_rdata;
+    assign icache_valid = inst_sram_req;
+    assign icache_tag = pa[31:12];
+    assign icache_index = pa[11:4];
+    assign icache_offset = pa[3:0];
+    assign inst_sram_addr_ok = icache_addrok;
+    assign inst_sram_data_ok = icache_dataok;
+    assign inst_sram_rdata = icache_rdata;
 
 // Signal definitions
     /***************************************************
@@ -72,8 +87,8 @@ module IF(
     wire    [31:0]  pc_next;
     wire    [31:0]  inst;
 
-    reg     [31:0]  preIF_buf_inst, IF_buf_inst;
-    reg             preIF_buf_valid, IF_buf_valid;
+    reg     [31:0]  IF_buf_inst;
+    reg             IF_buf_valid;
 
     wire    [31:0]  pc_seq;
     wire    [31:0]  br_target;
@@ -183,23 +198,13 @@ module IF(
         1. successfully shake hands
         2. ADEF
 
-    2023.11.12 czxx
-        It's ok when preIF_cancel, the inst that will go to next
-    stage would be invalidated.
-
     2023.11.30 yzcc
         also allow to go when preIF is tagged with 'refetch'
     ************************************************************/
     assign preIF_ready_go = (inst_sram_req & inst_sram_addr_ok) | preIF_has_adef | preIF_has_mem_except | preIF_refetch_tag;
 
     // to_IF_valid
-    /***********************************************************
-    2023.11.12 czxx
-        to_IF_valid should be invalidated if addr request happen
-    to be accepted when we need to cancel preIF 
-    ************************************************************/
-    assign preIF_cancel = (ertn_flush & except_valid | WB_ex & except_valid | br_taken | refetch_flush);
-    assign to_IF_valid  = preIF_ready_go & ~preIF_cancel;
+    assign to_IF_valid  = preIF_ready_go;
 
     // Retaining cancel situation
     /***********************************************************
@@ -219,10 +224,9 @@ module IF(
         2023.11.12 czxx
             When to reset?
             1. reset signal
-            2. handshake after cancel( ~preIF_cancel means
-        'after cancel')
+            2. handshake
         ******************************************************/
-        if (reset | ~preIF_cancel & preIF_ready_go & IF_allow_in) begin
+        if (reset | preIF_ready_go & IF_allow_in) begin
             {ertn_taken_r, ertn_pc_r}           <= 0;
             {ex_taken_r, ex_pc_r}               <= 0;
             {br_taken_r, br_pc_r}               <= 0;
@@ -273,7 +277,6 @@ module IF(
     2023.11.30 yzcc
         4. mem eceptions (PIL etc.) will not pull up a request
     **************************************************************/
-    wire    [31:0]  pa;
     wire    [1:0]   mat;
 
     assign inst_sram_req            = ~reset & ~br_stall & IF_allow_in & ~preIF_has_adef & ~preIF_refetch_tag & ~preIF_has_mem_except;
@@ -358,17 +361,9 @@ module IF(
                             | IF_has_mem_except
                             | (unfinish_cnt == 0 && IF_refetch_tag);
     assign IF_allow_in      = ~IFreg_valid & ~IF_refetch_tag | ID_allow_in & IF_ready_go;
-    assign IFreg_valid      = IF_valid & ~IF_cancel_tak & ~IF_refetch_tag;
+    assign IFreg_valid      = IF_valid & ~IF_cancel_tak;
 
     // IF_valid
-    // Old
-    /***********************************************************
-    2023.11.10 yzcc
-        Update IF_valid when preIF is ready to push a PC into
-    IF stage. Pay attention that IF_valid only stands for part
-    of the validity of the PC(or inst) in IF stage, because
-    IF_cancel will also affect the validity when pushing to ID.
-    ************************************************************/
     always @(posedge clk)
     begin
         if (reset)

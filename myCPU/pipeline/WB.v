@@ -72,7 +72,7 @@ assign  {tlbsrch_req, tlbwr_req, tlbfill_req, tlbrd_req, tlbsrch_hit, tlbsrch_in
 // Reg File
 assign  rf_waddr    = rf_waddr_tmp;
 assign  rf_wdata    = res_from_csr ? csr_rvalue : final_result;
-assign  rf_we       = rf_we_tmp & valid & ~wb_ex;
+assign  rf_we       = rf_we_tmp & valid & ~wb_ex & ~refetch_tag;
 
 // debug
 assign debug_wb_pc          = pc;
@@ -98,14 +98,14 @@ assign WB_allow_in          = 1;
 // refetch & tlbsrch_pause
 assign refetch          = refetch_detect & valid;
 assign tlbsrch_pause    = tlbsrch_pause_detect & valid;
-assign refetch_flush    = refetch_tag;
+assign refetch_flush    = refetch_tag & valid;
 assign refetch_pc       = pc;
 
 // Exception
 assign except           = wb_ex;
 
 // CSR
-assign wb_ex = |ebus_end & valid;
+assign wb_ex = |ebus_end & valid & ~refetch_tag;
 assign wb_pc = pc;
 assign wb_ecode =  {6{ebus_end[`EBUS_INT]}} & `ECODE_INT |
                    {6{ebus_end[`EBUS_PIL]}} & `ECODE_PIL |

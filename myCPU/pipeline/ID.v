@@ -523,7 +523,7 @@ wire   [`ID2MEM_LEN - 1:0]  IDreg_2MEM;
 wire   [`ID2WB_LEN - 1:0]   IDreg_2WB;
 wire   [`ID_TLB_LEN - 1:0]  IDreg_TLB;
 
-assign IDreg_valid   = valid & ~refetch_tag;
+assign IDreg_valid   = valid;
 assign IDreg_2EX     = {rdcntv_op, ebus_end, alu_op, alu_src1, alu_src2, mul, div};
 assign IDreg_2MEM    = {rkd_value, mem_en, st_ctrl, ld_ctrl};
 assign IDreg_2WB     = {pause_int_detect, ertn_flush, csr_ctrl, res_from_csr, rf_we, res_from_mem, rf_waddr, pc};
@@ -543,7 +543,7 @@ assign refetch          = refetch_detect & valid & ~has_ine;
 reg br_taken_last;
 always@(posedge clk)
 begin
-    if(reset | flush)
+    if(reset | flush | IF_ready_go & ID_allow_in)
        br_taken_last <= 1'b0;
     else
        br_taken_last <= br_taken;
