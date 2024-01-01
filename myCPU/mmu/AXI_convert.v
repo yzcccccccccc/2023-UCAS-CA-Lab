@@ -80,7 +80,7 @@ module AXI_convert(
     output wire        bready
 );
     reg rlast_reg;
-    // Original data sram interface convert
+    // data_sram interface convert
     wire inst_sram_req = icache_rd_req;
     wire inst_sram_wr = 1'b0;
     wire [1:0] inst_sram_size = 2'b10;
@@ -94,8 +94,6 @@ module AXI_convert(
     assign icache_ret_valid = inst_sram_data_ok;
     assign icache_ret_last = rlast_reg;
     assign icache_ret_data = inst_sram_rdata;
-
-
 
     wire read_harzard;
     reg [63:0] rdata_buff;

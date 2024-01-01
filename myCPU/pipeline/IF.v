@@ -56,7 +56,7 @@ module IF(
     input   wire            s0_v
 );
     wire    [31:0]  pa;
-// Original data sram interface convert
+    // data_sram interface convert
     wire        inst_sram_req;
     wire        inst_sram_wr;
     wire [1:0]  inst_sram_size;
@@ -68,8 +68,8 @@ module IF(
     wire [31:0] inst_sram_rdata;
     assign icache_valid = inst_sram_req;
     assign icache_tag = pa[31:12];
-    assign icache_index = pa[11:4];
-    assign icache_offset = pa[3:0];
+    assign icache_index = pc_next[11:4];
+    assign icache_offset = pc_next[3:0];
     assign inst_sram_addr_ok = icache_addrok;
     assign inst_sram_data_ok = icache_dataok;
     assign inst_sram_rdata = icache_rdata;

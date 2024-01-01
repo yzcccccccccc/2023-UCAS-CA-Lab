@@ -87,7 +87,7 @@ reg [31:0] wb_wdata, wb_odata;  // odata means "original data", for wstrb
 
 // regs for Miss Buffer
 // replace_way keep unchanged LOOKUP, don't need to store it.
-reg [31:0] mb_cnt;  // cnt num of receiving data
+reg [31:0] mb_cnt;  // cnt of receiving data num
 
 reg [ 3:0] lfsr_reg;
 
@@ -107,6 +107,25 @@ reg  wr_req_reg;
 wire hit_write_hazard;
 wire hit_write_hazard_lookup;
 wire hit_write_hazard_write;
+
+// perf cnt
+reg [31:0] icache_hit_cnt, icache_miss_cnt;
+always @(posedge clk)
+begin
+    if (rst)
+    begin
+        icache_hit_cnt  <= 32'b0;
+        icache_miss_cnt <= 32'b0;
+    end
+    else if (m_current_state == M_LOOKUP & cache_hit)
+    begin
+        icache_hit_cnt <= icache_hit_cnt + 1;
+    end
+    else if (m_current_state == M_LOOKUP & ~cache_hit)
+    begin
+        icache_miss_cnt <= icache_miss_cnt + 1;
+    end
+end
 
 // Main FSM
 localparam M_IDLE = 5'b00001,
