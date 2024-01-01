@@ -353,7 +353,7 @@ begin
     end
     else if (wb_current_state == `WRITE & ~wb_way)
     begin
-        way0_d_array[wb_index] <= 1'b0;
+        way0_d_array[wb_index] <= 1'b1;
     end
     else if (m_current_state == M_REFILL & ~replace_way)
     begin
@@ -375,7 +375,7 @@ begin
     end
     else if (wb_current_state == `WRITE & wb_way)
     begin
-        way1_d_array[wb_index] <= 1'b0;
+        way1_d_array[wb_index] <= 1'b1;
     end
     else if (m_current_state == M_REFILL & replace_way)
     begin
